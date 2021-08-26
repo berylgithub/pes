@@ -15,7 +15,7 @@ data = {"H2":{"data":[]},
 
 kinds = list(data.keys())
 #read all data:
-#f_dir = "C:/Users/beryl/Documents/WU/Main Topic/PythonFilesImportant/Data/Files/"
+#f_dir = "C:/Users/beryl/Documents/WU/Main Topic/PythonFilesImportant/Data/Files/" # main pc dir
 f_dir = "/users/baribowo/Documents/maintopic/PythonFilesImportant/Data/Files/" #office dir
 _, _, onlyfiles = next(walk(f_dir))
 print(onlyfiles)
