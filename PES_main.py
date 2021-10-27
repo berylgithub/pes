@@ -18,8 +18,8 @@ if __name__ == "__main__":
     print(len(list_data))
     
     #getdata:
-    #mols = ["OH+", "H2", "H2+", "O2", "O2+", "OH"]
-    mols = ["H2+"]
+    mols = ["OH+", "H2", "H2+", "O2", "O2+", "OH"]
+    #mols = ["H2+"]
     dict_list = [{'mol':mol} for mol in mols]
     qidxes = pdata.many_queries_many_vars_indices(dict_list, list_data)
     rel_datasets = list_data[qidxes]
@@ -30,7 +30,7 @@ if __name__ == "__main__":
     F_names = ["ansatz", "CHIPR"]
     Z = 8
     M = 7; m = 4; len_C = 3*M + 1
-    restarts = 5; powers = 1; delta = 1e-5
+    restarts = 10; powers = 3; delta = 1e-5
     
     data = {}
     data["num_params"] = len_C
