@@ -18,7 +18,8 @@ if __name__ == "__main__":
     print(len(list_data))
     
     #getdata:
-    mols = ["OH+", "H2", "H2+", "O2", "O2+", "OH"]
+    #mols = ["OH+", "H2", "H2+", "O2", "O2+", "OH"]
+    mols = ["H2+"]
     dict_list = [{'mol':mol} for mol in mols]
     qidxes = pdata.many_queries_many_vars_indices(dict_list, list_data)
     rel_datasets = list_data[qidxes]
