@@ -7,7 +7,7 @@ Created on Thu Apr  1 14:35:09 2021
 
 import numpy as np, pandas as pd
 import nbimporter #ipython importer
-import PES_models as pmodel, PES_incremental_exp as pdata
+import PES_models as pmodel, PES_data_processor as pdata
 #utilities:
 import time, datetime, warnings
 
