@@ -66,6 +66,7 @@ if __name__ == "__main__":
         
         #getdata:
         mols = ["OH+", "H2", "H2+", "O2", "O2+", "OH"]
+        Zs = {"OH+":8, "H2":1, "H2+":1, "O2":64, "O2+":64, "OH":8}
         #mols = ["H2+"]
         dict_list = [{'mol':mol} for mol in mols]
         qidxes = pdata.many_queries_many_vars_indices(dict_list, list_data)
@@ -75,14 +76,14 @@ if __name__ == "__main__":
         #model training:
         Fs = [pmodel.f_diatomic_vdw, pmodel.f_diatomic_chipr_ohplus]
         F_names = ["ansatz", "CHIPR"]
-        Z = 8
+        Z = 8 #change Z for each molecule!!
         M = 7; m = 4; len_C = 3*M + 1
         restarts = 10; powers = 3; delta = 1e-5
         
         data = {}
         data["num_params"] = len_C
         data["opt_restart"] = restarts; data["opt_power"] = powers; data["opt_delta"] = delta
-        data["mol"] = []; data["state"] = []; data["author"] = []; data["method"] = [] #dataset descriptor
+        data["mol"] = []; data["state"] = []; data["author"] = []; data["method"] = []; data["Z"] = [] #dataset descriptor
         data["chipr_acc"] = []; data["chipr_C"] = []
         data["ansatz_acc"] = []; data["ansatz_C"] = []
         with warnings.catch_warnings(record=True): #CHIPR NaN problem
@@ -93,6 +94,7 @@ if __name__ == "__main__":
                     data["method"].append(dset["method"])
                 else:
                     data["method"].append(None)
+                Z = Zs[dset["mol"]] #assign Z
                 V = dset["V"]; R = dset["R"]
                 args = [(R,Z,M), (R,Z,M,m)]
                 rmses = []; Cs = []
@@ -104,10 +106,11 @@ if __name__ == "__main__":
                     print(Cs)
                 data["ansatz_acc"].append(rmses[0]); data["chipr_acc"].append(rmses[1])
                 data["ansatz_C"].append(Cs[0]); data["chipr_C"].append(Cs[1])
+                data["Z"].append(Z)
                 
         print(data)  
         df = pd.DataFrame.from_dict(data)
         df.to_pickle("result/res_each_state_"+datetime.datetime.now().strftime('%d%m%y_%H%M%S')+".pkl")
         
     '''end of main functions, actual main starts below'''
-    joint_fit()
+    each_state_fit()
