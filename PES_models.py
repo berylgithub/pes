@@ -200,6 +200,26 @@ def f_diatomic_vdw(C, *args):
     V = C[0] + a/c
     return V
 
+'''fourth proposed model'''
+def f_diatomic_ansatz_1(C, *args): #ansatz 0 was the f_diatomic_vdw
+    R = args[0]
+    Z = args[1]
+    M = args[2] #here M = 4*m, since there are 4 different parameters
+    s = Z/R; t=s**2
+    q = t/(1+t)
+    prod = 1
+    '''
+    # incorrect index op:
+    for k in range(M-3):
+        numer = (q - C[k])**2 + C[k+1]
+        denom = (q - C[k+2])**2 + C[k+3]
+        prod *= numer/denom
+    '''
+    
+    V = q**3*(s - prod)
+        
+
+
 ## CHIPR models:
 ### for OH+:
 def f_diatomic_chipr_ohplus(C, *args):
@@ -254,7 +274,6 @@ def f_diatomic_chipr_ohplus(C, *args):
     y = horner(x, A)*x # the polynomial has 1 extra degree
     V = y*(Z*(R**(-omega)))
     return V
-
 
     
 ## Deiters + Neumaier model:
