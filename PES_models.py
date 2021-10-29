@@ -6,7 +6,6 @@ Created on Wed Oct 27 07:36:29 2021
 """
 
 import numpy as np
-import json
 from scipy.optimize import least_squares
 from scipy.interpolate import CubicSpline
 #dfbgn:
