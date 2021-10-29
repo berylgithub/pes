@@ -63,7 +63,6 @@ if __name__ == "__main__":
         #df = pd.DataFrame.from_dict(data)
         df = pd.DataFrame.from_dict(data, orient='index')
         df = df.transpose() #because the lengths of C are not the same
-        print(df)
         df.to_pickle("result/res_joint_"+mol+"_"+datetime.datetime.now().strftime('%d%m%y_%H%M%S')+".pkl")
         
     def each_state_fit():    
@@ -123,8 +122,11 @@ if __name__ == "__main__":
                 data["Z"].append(Z)
                 
         print(data)  
-        df = pd.DataFrame.from_dict(data)
+        #df = pd.DataFrame.from_dict(data)
+        df = pd.DataFrame.from_dict(data, orient='index') #if the lengths of C are not equal
+        df = df.transpose() #because the lengths of C are not the same
         df.to_pickle("result/res_each_state_"+datetime.datetime.now().strftime('%d%m%y_%H%M%S')+".pkl")
         
     '''end of main functions, actual main starts below'''
-    joint_fit()
+    #joint_fit()
+    each_state_fit()
