@@ -203,29 +203,25 @@ if __name__ == "__main__":
         V = np.concatenate(V_list)
 
         
-        Fs = [pmodel.f_diatomic_ansatz_1]
-        F_names = ["ansatz_1", "CHIPR"]
-        M = 10
-        par = 4*M
-        len_Cs = [par]
+        F = pmodel.f_diatomic_ansatz_1
+        F_name = "ansatz_1"
         Z = 8
-        #args = [(R,Z,M), (R,Z,M,m), (R,), (R,)]
-        args = [(R,Z,M)]
-        rmses = []; Cs = []
-        restarts = 10; powers = 5; delta = 1e-5
-        with warnings.catch_warnings(record=True): #CHIPR NaN problem
-            for i, f in enumerate(Fs):
-                len_C = len_Cs[i]
-                rmse, C = pmodel.multiple_multistart(restarts, powers, delta, f, V, *args[i], len_C=len_C, mode="default")
-                rmses.append(rmse); Cs.append(C)
-                print(F_names[i], "rmse = ",rmse)
-
+        restarts = 10; powers = 3; delta = 1e-5
         
         data = {}
-        data["num_params"] = len_C #obj params
+        data["ansatz_1_acc"] = []; data["ansatz_1_C"] = []
         data["opt_restart"] = restarts; data["opt_power"] = powers; data["opt_delta"] = delta #opt params
         data["mol"] = mol; #dataset descriptor
-        data["ansatz_1_acc"] = rmses[0]; data["ansatz_1_C"] = Cs[0]
+        with warnings.catch_warnings(record=True): #CHIPR NaN problem
+            for M in range(1, 6):
+                len_C = 4*M
+                arg = (R,Z,M)
+                rmse, C = pmodel.multiple_multistart(restarts, powers, delta, F, V, *arg, len_C=len_C, mode="default")
+                print(F_name, "rmse = ",rmse)
+                
+                data["num_params"].append(len_C); data["degree"].append(M)
+                data["ansatz_1_acc"].append(rmse);
+                data["ansatz_1_C"].append(C);
         print(data)
         
         '''
@@ -308,6 +304,7 @@ if __name__ == "__main__":
         
         
     '''end of main functions, actual main starts below'''
-    performance_comparison()
+    #performance_comparison()
     #joint_fit()
+    joint_fit_solo()
     
