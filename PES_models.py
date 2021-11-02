@@ -200,24 +200,30 @@ def f_diatomic_vdw(C, *args):
     V = C[0] + a/c
     return V
 
+#alias:
+f_diatomic_ansatz_0 = f_diatomic_vdw
+
 '''fourth proposed model'''
 def f_diatomic_ansatz_1(C, *args): #ansatz 0 was the f_diatomic_vdw
     R = args[0]
     Z = args[1]
-    M = args[2] #here M = 4*m, since there are 4 different parameters
+    M = args[2] #degree of pol
+    #coefficients:
+    a = C[: M]
+    b = C[M : 2*M]
+    c = C[2*M : 3*M]
+    d = C[3*M : 4*M]
+    #physical params:
     s = Z/R; t=s**2
     q = t/(1+t)
     prod = 1
-    '''
-    # incorrect index op:
-    for k in range(M-3):
-        numer = (q - C[k])**2 + C[k+1]
-        denom = (q - C[k+2])**2 + C[k+3]
+    for k in range(M):
+        numer = (q - a[k])**2 + b[k]
+        denom = (q - c[k])**2 + d[k]
         prod *= numer/denom
-    '''
     
-    V = q**3*(s - prod)
-        
+    V = (q**3)*(s - prod)
+    return V
 
 
 ## CHIPR models:
