@@ -214,6 +214,7 @@ if __name__ == "__main__":
         data["mol"] = mol; #dataset descriptor
         with warnings.catch_warnings(record=True): #CHIPR NaN problem
             for M in range(1, 6):
+                print("M = ",M)
                 len_C = 4*M
                 arg = (R,Z,M)
                 rmse, C = pmodel.multiple_multistart(restarts, powers, delta, F, V, *arg, len_C=len_C, mode="default")
