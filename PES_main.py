@@ -137,15 +137,19 @@ if __name__ == "__main__":
         V = np.concatenate(V_list)
 
         
-        Fs = [pmodel.f_diatomic_ansatz_0, pmodel.f_diatomic_chipr_ohplus, pmodel.f_diatomic_dn, pmodel.f_diatomic_ds]
-        F_names = ["ansatz", "CHIPR", "Deiters-Neumaier", "Deiters-Sadus"]
-        M = 7; m = 4;
-        par = 3*M+1
-        len_Cs = [par, par, 5, 8] #number of free parameters
+        Fs = [pmodel.f_diatomic_ansatz_1, pmodel.f_diatomic_chipr_ohplus]
+        F_names = ["ansatz_1", "CHIPR"]
+        #M = 7; m = 4;
+        #par = 3*M+1
+        M = 7; m = 6;
+        par = 4*M
+        #len_Cs = [par, par, 5, 8] #number of free parameters
+        len_Cs = [par, par]
         Z = 8
-        restarts = 1; powers = 1; delta = 1e-5
-        args = [(R,Z,M), (R,Z,M,m), (R,), (R,)]
+        #args = [(R,Z,M), (R,Z,M,m), (R,), (R,)]
+        args = [(R,Z,M), (R,Z,M,m)]
         rmses = []; Cs = []
+        restarts = 10; powers = 2; delta = 1e-5
         for i, f in enumerate(Fs):
             len_C = len_Cs[i]
             rmse, C = pmodel.multiple_multistart(restarts, powers, delta, f, V, *args[i], len_C=len_C, mode="default")
@@ -157,10 +161,11 @@ if __name__ == "__main__":
         data["num_params"] = len_C #obj params
         data["opt_restart"] = restarts; data["opt_power"] = powers; data["opt_delta"] = delta #opt params
         data["mol"] = mol; #dataset descriptor
-        data["ansatz_acc"] = rmses[0]; data["ansatz_C"] = Cs[0]
+        data["ansatz_1_acc"] = rmses[0]; data["ansatz_1_C"] = Cs[0]
+        #data["ansatz_acc"] = rmses[0]; data["ansatz_C"] = Cs[0]
         data["chipr_acc"] = rmses[1]; data["chipr_C"] = Cs[1]
-        data["dn_acc"] = rmses[2]; data["dn_C"] = Cs[2]
-        data["ds_acc"] = rmses[3]; data["ds_C"] = Cs[3]
+        #data["dn_acc"] = rmses[2]; data["dn_C"] = Cs[2]
+        #data["ds_acc"] = rmses[3]; data["ds_C"] = Cs[3]
         print(data)
         
         '''
@@ -244,5 +249,6 @@ if __name__ == "__main__":
         
         
     '''end of main functions, actual main starts below'''
-    performance_comparison()
+    #performance_comparison()
+    joint_fit()
     
