@@ -206,14 +206,15 @@ if __name__ == "__main__":
         F = pmodel.f_diatomic_ansatz_1
         F_name = "ansatz_1"
         Z = 8
-        restarts = 10; powers = 3; delta = 1e-5
+        restarts = 10; powers = 5; delta = 1e-5
         
         data = {}
         data["ansatz_1_acc"] = []; data["ansatz_1_C"] = []
+        data["num_params"] = []; data["degree"] = []
         data["opt_restart"] = restarts; data["opt_power"] = powers; data["opt_delta"] = delta #opt params
         data["mol"] = mol; #dataset descriptor
         with warnings.catch_warnings(record=True): #CHIPR NaN problem
-            for M in range(1, 6):
+            for M in range(1, 7):
                 print("M = ",M)
                 len_C = 4*M
                 arg = (R,Z,M)
