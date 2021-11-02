@@ -141,7 +141,7 @@ if __name__ == "__main__":
         F_names = ["ansatz_1", "CHIPR"]
         #M = 7; m = 4;
         #par = 3*M+1
-        M = 7; m = 6;
+        M = 10; m = 9;
         par = 4*M
         #len_Cs = [par, par, 5, 8] #number of free parameters
         len_Cs = [par, par]
@@ -149,7 +149,7 @@ if __name__ == "__main__":
         #args = [(R,Z,M), (R,Z,M,m), (R,), (R,)]
         args = [(R,Z,M), (R,Z,M,m)]
         rmses = []; Cs = []
-        restarts = 10; powers = 2; delta = 1e-5
+        restarts = 10; powers = 5; delta = 1e-5
         for i, f in enumerate(Fs):
             len_C = len_Cs[i]
             rmse, C = pmodel.multiple_multistart(restarts, powers, delta, f, V, *args[i], len_C=len_C, mode="default")
