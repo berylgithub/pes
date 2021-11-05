@@ -45,7 +45,7 @@ if __name__ == "__main__":
         
         
         loop = int(1e4); n = 20; # # of loops per run and evaluation runs
-        restarts = int(20); powers = int(5); # number of optimization restarts and powers for random number generations
+        restarts = int(10); powers = int(3); # number of optimization restarts and powers for random number generations
         delta = 1e-5 #error tolerance to stop iterations
 
         '''
@@ -306,7 +306,7 @@ if __name__ == "__main__":
         
         
     '''end of main functions, actual main starts below'''
-    #performance_comparison()
+    performance_comparison()
     #joint_fit()
-    joint_fit_solo()
+    #joint_fit_solo()
     
