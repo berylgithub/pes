@@ -71,3 +71,19 @@ def data_conversion(R, V, R_unit="angstrom", V_unit="ev"):
         elif V_unit == "kjmol-1":
             V *= 0.00038088
     return R, V
+
+if __name__ == "__main__":
+    def conv_pd_to_pkl():
+        import pandas as pd
+        import pickle
+
+        files = ["result/res_joint_OH+_271021_153617.pkl", "result/res_joint_OH+_291021_160942.pkl", "result/performance_22102021.pkl"]
+        for f in files:
+            data = pd.read_pickle(f)
+            data = data.to_dict(orient="list")
+            print(data)
+            with open(f, 'wb') as handle:
+                pickle.dump(data, handle)
+                
+    '''======call functions from here (main is from here)========'''
+    conv_pd_to_pkl()
