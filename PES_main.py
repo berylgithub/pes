@@ -132,8 +132,8 @@ if __name__ == "__main__":
         print(len(R_train), len(R_test))
         print(R_train, V_train)
         
-        Fs = [pmodel.f_diatomic_ansatz_0, pmodel.f_diatomic_chipr_ohplus]
-        F_names = ["ansatz_0","CHIPR"]
+        Fs = [pmodel.f_diatomic_ansatz_1, pmodel.f_diatomic_chipr_ohplus]
+        F_names = ["ansatz_1","CHIPR"]
         
         restarts = int(10); powers = int(3); # number of optimization restarts and powers for random number generations
         delta = 1e-5 #error tolerance to stop iterations
@@ -145,20 +145,22 @@ if __name__ == "__main__":
         data["num_params"] = []
         data["opt_restart"] = restarts; data["opt_power"] = powers; data["opt_delta"] = delta
         data["chipr_t"] = []; data["chipr_acc_train"] = []; data["chipr_acc_test"] = []; data["chipr_C"] = []
-        data["ansatz_0_t"] = []; data["ansatz_0_acc_train"] = []; data["ansatz_0_acc_test"] = []; data["ansatz_0_C"] = []
+        data["ansatz_1_t"] = []; data["ansatz_1_acc_train"] = []; data["ansatz_1_acc_test"] = []; data["ansatz_1_C"] = []
         data["degree"] = []
         
         max_deg = 30 #maximum polynomial degree
         init_time = time.time() #timer
         with warnings.catch_warnings(record=True): #required, otherwise the program will abruptly stops!
             for M in range(2, max_deg):
-                if (2*M - 2)%3 == 0: # must satisfy this
-                    m = int((2*M - 2)/3)
-                    ansatz_par = 3*M+1
-                #if M%4 == 0: #multiple of 4 only 
-                    #m = M - 1 #for new ansatz
-                    #ansatz_par = 4*M
-                    #chipr_par = 3*(m+1)+M;
+                '''for ansatz 0:'''
+                #if (2*M - 2)%3 == 0: # must satisfy this
+                    #m = int((2*M - 2)/3)
+                    #ansatz_par = 3*M+1
+                '''for ansatz 1:'''
+                if M%4 == 0: #multiple of 4 only 
+                    m = M - 1 #for new ansatz
+                    ansatz_par = 4*M
+                    chipr_par = 3*(m+1)+M;
                     print("===========================")
                     print("M = ",M, ", m (chipr) =",m)
                     print("parameters = ",ansatz_par)
@@ -181,9 +183,9 @@ if __name__ == "__main__":
                         
                     #append to data:
                     data["num_params"].append(len_C); data["degree"].append(M)
-                    data["ansatz_0_acc_train"].append(rmses_train[0]); data["chipr_acc_train"].append(rmses_train[1]) #train
-                    data["ansatz_0_acc_test"].append(rmses_test[0]); data["chipr_acc_test"].append(rmses_train[1]) #test
-                    data["ansatz_0_C"].append(Cs[0]); data["chipr_C"].append(Cs[1])
+                    data["ansatz_1_acc_train"].append(rmses_train[0]); data["chipr_acc_train"].append(rmses_train[1]) #train
+                    data["ansatz_1_acc_test"].append(rmses_test[0]); data["chipr_acc_test"].append(rmses_test[1]) #test
+                    data["ansatz_1_C"].append(Cs[0]); data["chipr_C"].append(Cs[1])
             
             end_time = time.time() #timer
             elapsed = end_time-init_time
@@ -192,6 +194,103 @@ if __name__ == "__main__":
             print(data)
             #write to pandas, then to file:
             filename = "result/split_data_fit_OH+"+datetime.datetime.now().strftime('%d%m%Y')+".pkl"
+            with open(filename, 'wb') as handle:
+                pickle.dump(data, handle)
+    
+    def cross_val_fit():
+        '''cross validation fit for one dataset, pick the best model'''
+        from sklearn.model_selection import KFold
+        
+        list_data = np.load('data/hxoy_data.npy', allow_pickle=True)
+        list_data = list_data[()]
+        
+        mol = "OH+"
+        qidxes = pdata.query_one_var_indices(mol, "mol", list_data) #pick one
+        R = list_data[qidxes[1]]["R"]; V = list_data[qidxes[1]]["V"]
+        
+        num_fold = 4
+        kf = KFold(n_splits=num_fold, random_state=0, shuffle=True) #num of testing data = 1/split*len(data)
+            
+        Fs = [pmodel.f_diatomic_ansatz_0, pmodel.f_diatomic_chipr_ohplus]
+        F_names = ["ansatz_0","CHIPR"]
+        
+        restarts = int(10); powers = int(3); # number of optimization restarts and powers for random number generations
+        delta = 1e-5 #error tolerance to stop iterations
+
+        #physical params:
+        Z = 8 #for OH or its ions
+        
+        data = {}
+        data["fold"] = num_fold
+        data["num_params"] = []
+        data["opt_restart"] = restarts; data["opt_power"] = powers; data["opt_delta"] = delta
+        data["chipr_t"] = []; data["chipr_acc_train"] = []; data["chipr_acc_test"] = []; data["chipr_C"] = []
+        data["ansatz_0_t"] = []; data["ansatz_0_acc_train"] = []; data["ansatz_0_acc_test"] = []; data["ansatz_0_C"] = []
+        data["degree"] = []
+    
+        max_deg = 30 #maximum polynomial degree
+        init_time = time.time() #timer
+        with warnings.catch_warnings(record=True): #required, otherwise the program will abruptly stops!
+            for M in range(2, max_deg):
+                '''for ansatz 0:'''
+                if (2*M - 2)%3 == 0: # must satisfy this
+                    m = int((2*M - 2)/3)
+                    ansatz_par = 3*M+1
+                    '''for ansatz 1:'''
+                    #if M%4 == 0: #multiple of 4 only 
+                        #m = M - 1 #for new ansatz
+                        #ansatz_par = 4*M
+                        #chipr_par = 3*(m+1)+M;
+                    print("===========================")
+                    print("M = ",M, ", m (chipr) =",m)
+                    print("parameters = ",ansatz_par)
+                    
+                    min_train_rmses = [np.inf, np.inf]; min_test_rmses = [np.inf, np.inf]; min_Cs = [None, None]
+                    fold = 0
+                    for train_index, test_index in kf.split(R):
+                        print(">>> fold = ",fold)
+                        fold+=1
+                        R_train, R_test = R[train_index], R[test_index]
+                        V_train, V_test = V[train_index], V[test_index]
+                        
+                        args_train = [(R_train,Z,M), (R_train,Z,M,m)] 
+                        args_test = [(R_test,Z,M), (R_test,Z,M,m)]
+                        len_C = ansatz_par #coef length, min(len) = 3M+1
+                        print("functions",F_names)
+                        #Accuracy evaluation:
+                        print(">>> Accuracy evaluation:")
+                        rmses_train = []; rmses_test = []; Cs = []
+                        for i, f in enumerate(Fs):
+                            rmse_train, C = pmodel.multiple_multistart(restarts, powers, delta, f, V_train, *args_train[i], len_C=len_C, mode="default")
+                            V_pred = f(C, *args_test[i])
+                            rmse_test = pmodel.RMSE(V_test, V_pred)
+                                
+                            rmses_train.append(rmse_train); rmses_test.append(rmse_test)
+                            Cs.append(C)
+                            print("rmse test = ",rmse_test)
+                            
+                        #get min test rmse:
+                        for i in range(len(min_test_rmses)):
+                            if rmses_test[i] < min_test_rmses[i]:
+                                min_test_rmses[i] = rmses_test[i]
+                                min_train_rmses[i] = rmses_train[i]
+                                min_Cs[i] = Cs[i]
+                                
+                    print("picked rmses = ",min_test_rmses)
+                        
+                    #append to data:
+                    data["num_params"].append(len_C); data["degree"].append(M)
+                    data["ansatz_0_acc_train"].append(min_train_rmses[0]); data["chipr_acc_train"].append(min_train_rmses[1]) #train
+                    data["ansatz_0_acc_test"].append(min_test_rmses[0]); data["chipr_acc_test"].append(min_test_rmses[1]) #test
+                    data["ansatz_0_C"].append(min_Cs[0]); data["chipr_C"].append(min_Cs[1])
+            
+            end_time = time.time() #timer
+            elapsed = end_time-init_time
+            data["simulation_time"] = elapsed
+            print("elapsed time =",elapsed,"s")
+            print(data)
+            #write to pandas, then to file:
+            filename = "result/cross_val_fit_"+mol+"_"+datetime.datetime.now().strftime('%d%m%Y')+".pkl"
             with open(filename, 'wb') as handle:
                 pickle.dump(data, handle)
     
@@ -385,4 +484,5 @@ if __name__ == "__main__":
         
         
     '''end of main functions, actual main starts below'''
-    split_data_fit_performance()
+    #split_data_fit_performance()
+    cross_val_fit()
