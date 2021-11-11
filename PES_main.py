@@ -116,6 +116,85 @@ if __name__ == "__main__":
             with open(filename, 'wb') as handle:
                 pickle.dump(data, handle)
     
+    def split_data_fit_performance():
+        '''split the data for training and testing'''
+        from sklearn.model_selection import train_test_split
+        
+        list_data = np.load('data/hxoy_data.npy', allow_pickle=True)
+        list_data = list_data[()]
+        
+        mol = "OH+"
+        qidxes = pdata.query_one_var_indices(mol, "mol", list_data) #pick one
+        R = list_data[qidxes[1]]["R"]; V = list_data[qidxes[1]]["V"]
+        print(R, V)
+        
+        R_train, R_test, V_train, V_test = train_test_split(R, V, test_size=0.25, random_state=0) #split data
+        print(len(R_train), len(R_test))
+        print(R_train, V_train)
+        
+        Fs = [pmodel.f_diatomic_ansatz_0, pmodel.f_diatomic_chipr_ohplus]
+        F_names = ["ansatz_0","CHIPR"]
+        
+        restarts = int(10); powers = int(3); # number of optimization restarts and powers for random number generations
+        delta = 1e-5 #error tolerance to stop iterations
+
+        #physical params:
+        Z = 8 #for OH or its ions
+        
+        data = {}
+        data["num_params"] = []
+        data["opt_restart"] = restarts; data["opt_power"] = powers; data["opt_delta"] = delta
+        data["chipr_t"] = []; data["chipr_acc_train"] = []; data["chipr_acc_test"] = []; data["chipr_C"] = []
+        data["ansatz_0_t"] = []; data["ansatz_0_acc_train"] = []; data["ansatz_0_acc_test"] = []; data["ansatz_0_C"] = []
+        data["degree"] = []
+        
+        max_deg = 30 #maximum polynomial degree
+        init_time = time.time() #timer
+        with warnings.catch_warnings(record=True): #required, otherwise the program will abruptly stops!
+            for M in range(2, max_deg):
+                if (2*M - 2)%3 == 0: # must satisfy this
+                    m = int((2*M - 2)/3)
+                    ansatz_par = 3*M+1
+                #if M%4 == 0: #multiple of 4 only 
+                    #m = M - 1 #for new ansatz
+                    #ansatz_par = 4*M
+                    #chipr_par = 3*(m+1)+M;
+                    print("===========================")
+                    print("M = ",M, ", m (chipr) =",m)
+                    print("parameters = ",ansatz_par)
+                    
+                    #args = [(R,Z,M), (R,Z,M,m)] 
+                    args_train = [(R_train,Z,M), (R_train,Z,M,m)] 
+                    args_test = [(R_test,Z,M), (R_test,Z,M,m)]
+                    len_C = ansatz_par #coef length, min(len) = 3M+1
+                    print("functions",F_names)
+                    #Accuracy evaluation:
+                    print(">>> Accuracy evaluation:")
+                    rmses_train = []; rmses_test = []; Cs = []
+                    for i, f in enumerate(Fs):
+                        rmse_train, C = pmodel.multiple_multistart(restarts, powers, delta, f, V_train, *args_train[i], len_C=len_C, mode="default")
+                        V_pred = f(C, *args_test[i])
+                        rmse_test = pmodel.RMSE(V_test, V_pred)
+                        rmses_train.append(rmse_train); rmses_test.append(rmse_test)
+                        Cs.append(C)
+                        print("rmse test = ",rmse_test)
+                        
+                    #append to data:
+                    data["num_params"].append(len_C); data["degree"].append(M)
+                    data["ansatz_0_acc_train"].append(rmses_train[0]); data["chipr_acc_train"].append(rmses_train[1]) #train
+                    data["ansatz_0_acc_test"].append(rmses_test[0]); data["chipr_acc_test"].append(rmses_train[1]) #test
+                    data["ansatz_0_C"].append(Cs[0]); data["chipr_C"].append(Cs[1])
+            
+            end_time = time.time() #timer
+            elapsed = end_time-init_time
+            data["simulation_time"] = elapsed
+            print("elapsed time =",elapsed,"s")
+            print(data)
+            #write to pandas, then to file:
+            filename = "result/split_data_fit_OH+"+datetime.datetime.now().strftime('%d%m%Y')+".pkl"
+            with open(filename, 'wb') as handle:
+                pickle.dump(data, handle)
+    
     def joint_fit():
         '''joint fit for OH+'''
         list_data = np.load('data/hxoy_data.npy', allow_pickle=True)
@@ -306,7 +385,4 @@ if __name__ == "__main__":
         
         
     '''end of main functions, actual main starts below'''
-    performance_comparison()
-    #joint_fit()
-    #joint_fit_solo()
-    
+    split_data_fit_performance()
