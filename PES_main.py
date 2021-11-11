@@ -483,6 +483,97 @@ if __name__ == "__main__":
             pickle.dump(data, handle)
         
         
+    def cross_val_each_state_fit():    
+        ''' cross validation ver - separated fit for each state '''
+        from sklearn.model_selection import KFold
+        
+        list_data = np.load('data/hxoy_data.npy', allow_pickle=True)
+        list_data = list_data[()]
+        
+        num_fold = 4
+        kf = KFold(n_splits=num_fold, random_state=0, shuffle=True) #num of testing data = 1/split*len(data)
+        
+        #getdata:
+        mols = ["OH+", "H2", "H2+", "O2", "O2+", "OH"]
+        Zs = {"OH+":8, "H2":1, "H2+":1, "O2":64, "O2+":64, "OH":8}
+        #mols = ["H2+"]
+        dict_list = [{'mol':mol} for mol in mols]
+        qidxes = pdata.many_queries_many_vars_indices(dict_list, list_data)
+        rel_datasets = list_data[qidxes]
+        print(rel_datasets)
+        
+        #model training:
+        #Fs = [pmodel.f_diatomic_vdw, pmodel.f_diatomic_chipr_ohplus]
+        Fs = [pmodel.f_diatomic_ansatz_0, pmodel.f_diatomic_chipr_ohplus]
+        F_names = ["ansatz", "CHIPR"]
+        M = 7; m = 4;
+        par = 3*M+1
+        len_Cs = [par, par] #number of free parameters
+        Z = 8 #change Z for each molecule!!
+        restarts = 10; powers = 3; delta = 1e-5
+        
+        data = {}
+        data["num_params"] = [] #only for variable free params, less relevant for fixed params e.g. f-dn or f-ds
+        data["opt_restart"] = restarts; data["opt_power"] = powers; data["opt_delta"] = delta
+        data["mol"] = []; data["state"] = []; data["author"] = []; data["method"] = []; data["Z"] = [] #dataset descriptor
+        data["ansatz_acc"] = []; data["ansatz_C"] = []
+        data["chipr_acc"] = []; data["chipr_C"] = []
+        #data["dn_acc"] = []; data["dn_C"] = []
+        #data["ds_acc"] = []; data["ds_C"] = []
+        with warnings.catch_warnings(record=True): #CHIPR NaN problem
+            for dset in rel_datasets:
+                print("dataset = ", dset["mol"], dset["state"], dset["author"])
+                data["mol"].append(dset["mol"]); data["state"].append(dset["state"]); data["author"].append(dset["author"]);
+                if "method" in dset:
+                    data["method"].append(dset["method"])
+                else:
+                    data["method"].append(None)
+                Z = Zs[dset["mol"]]; data["Z"].append(Z) #assign Z
+                V = dset["V"]; R = dset["R"]
+                min_test_rmses = [np.inf, np.inf]; min_Cs = [None, None]
+                fold = 0
+                for train_index, test_index in kf.split(R): #k-cross-val
+                    print(">>> fold = ",fold)
+                    fold+=1
+                    R_train, R_test = R[train_index], R[test_index]
+                    V_train, V_test = V[train_index], V[test_index]
+                    
+                    args_train = [(R_train,Z,M), (R_train,Z,M,m)] 
+                    args_test = [(R_test,Z,M), (R_test,Z,M,m)]
+                    rmses_train = []; rmses_test = []; Cs = []
+                    for i, f in enumerate(Fs):
+                        len_C = len_Cs[i]
+                        rmse_train, C = pmodel.multiple_multistart(restarts, powers, delta, f, V_train, *args_train[i], len_C=len_C, mode="default")
+                        V_pred = f(C, *args_test[i])
+                        rmse_test = pmodel.RMSE(V_test, V_pred)
+
+                        rmses_test.append(rmse_test); Cs.append(C)
+                        print(F_names[i], "rmse = ",rmse_test)
+                        data["num_params"].append(len_C)
+                    
+                    #get min test rmse:
+                    for i in range(len(min_test_rmses)): #ignore train rmse
+                        if rmses_test[i] < min_test_rmses[i]:
+                            min_test_rmses[i] = rmses_test[i]
+                            min_Cs[i] = Cs[i]
+                    
+                data["ansatz_acc"].append(min_test_rmses[0]); data["chipr_acc"].append(min_test_rmses[1]);
+                data["ansatz_C"].append(min_Cs[0]); data["chipr_C"].append(min_Cs[1]);
+                    
+                print("picked rmses = ",min_test_rmses)
+                
+        print(data)
+        '''
+        #df = pd.DataFrame.from_dict(data)
+        df = pd.DataFrame.from_dict(data, orient='index') #if the lengths of C are not equal
+        df = df.transpose() #because the lengths of C are not the same
+        df.to_pickle("result/res_each_state_"+datetime.datetime.now().strftime('%d%m%y_%H%M%S')+".pkl")
+        '''
+        filename = "result/cross_val_each_state_"+datetime.datetime.now().strftime('%d%m%y_%H%M%S')+".pkl"
+        with open(filename, 'wb') as handle:
+            pickle.dump(data, handle)
+        
     '''end of main functions, actual main starts below'''
     #split_data_fit_performance()
-    cross_val_fit()
+    #cross_val_fit()
+    cross_val_each_state_fit()
