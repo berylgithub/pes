@@ -11,6 +11,12 @@ import PES_models as pmodel, PES_data_processor as pdata
 import time, datetime, warnings
 
 if __name__ == "__main__":
+    '''========time eval only:========='''
+    
+    
+    '''=======eof time eval========='''
+    
+    
     def performance_comparison():
         '''compares the performance of each method'''
         '''
@@ -371,7 +377,71 @@ if __name__ == "__main__":
         filename = "result/res_each_state_"+datetime.datetime.now().strftime('%d%m%y_%H%M%S')+".pkl"
         with open(filename, 'wb') as handle:
             pickle.dump(data, handle)
+
+
+    '''===== cross-val ver beyond this point !!: ======'''
+
+    def special_cross_val_fit():
+        '''cross validation only for the non-Coulomb ansatz only for acc'''
+        from sklearn.model_selection import KFold
         
+        list_data = np.load('data/hxoy_data.npy', allow_pickle=True)
+        list_data = list_data[()]
+        
+        mol = "OH+"
+        qidxes = pdata.query_one_var_indices(mol, "mol", list_data) #pick one
+        R = list_data[qidxes[1]]["R"]; V = list_data[qidxes[1]]["V"]
+        
+        num_fold = 4
+        kf = KFold(n_splits=num_fold, random_state=0, shuffle=True) #num of testing data = 1/split*len(data)
+        
+        F = pmodel.f_diatomic_ansatz_2
+        F_name = "ansatz_2"
+        
+        restarts = int(10); powers = int(3); # number of optimization restarts and powers for random number generations
+        delta = 1e-5
+        
+        #no Z
+        data = {}
+        data["fold"] = num_fold
+        data["num_params"] = []
+        data["opt_restart"] = restarts; data["opt_power"] = powers; data["opt_delta"] = delta
+        data["ansatz_2_acc_train"] = []; data["ansatz_2_acc_test"] = []; data["ansatz_2_C"] = []
+        data["degree"] = []
+        
+        max_M = 20
+        for M in range(1, max_M+1): #include the last one in this case
+            min_train_rmses = [np.inf]; min_test_rmses = [np.inf]; min_Cs = [None]
+            fold = 0
+            for train_index, test_index in kf.split(R):
+                print(">>> fold = ",fold)
+                fold+=1
+                R_train, R_test = R[train_index], R[test_index]
+                V_train, V_test = V[train_index], V[test_index]
+                
+                arg_train = (R_train,M)
+                arg_test = (R_test,M)
+                
+                len_C = 4*M+7 #only for special case: non-coulomb pair pot
+        
+                print("functions",F_names)
+                
+                #Accuracy evaluation:
+                print(">>> Accuracy evaluation:")
+                prev_C = None #placeholder for previous parameters
+
+                #special augmentation for M >= 2:
+                    
+                rmse_train, C = pmodel.multiple_multistart(restarts, powers, delta, F, V_train, *arg_train, len_C=len_C, mode="default")
+                        
+                #append to data:
+                data["num_params"].append(len_C); data["degree"].append(M)
+                data["ansatz_2_acc_train"].append(min_train_rmses[0]); #train
+                data["ansatz_2_acc_test"].append(min_test_rmses[0]); #test
+                data["ansatz_2_C"].append(min_Cs[0]); 
+        
+                
+                
     def cross_val_performance_fit():
         '''cross validation fit for one dataset, pick the best model'''
         from sklearn.model_selection import KFold
