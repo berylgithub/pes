@@ -7,6 +7,11 @@ Created on Thu Apr  1 14:35:09 2021
 
 import numpy as np, pandas as pd, pickle, json
 import PES_models as pmodel, PES_data_processor as pdata
+
+#opt:
+from lmfit import Parameters, minimize
+from lmfit.printfuncs import report_fit
+
 #utilities:
 import time, datetime, warnings
 
@@ -46,13 +51,16 @@ if __name__ == "__main__":
         
         max_M = 20
         init_time = time.time() #timer
-        C = None #placeholder
+        C = None; prev_M = None #placeholder
         for M in range(1, max_M+1): #include the last one in this case            
             print(">>>>> M =",M)
             arg_train = (R_train,M)
             arg_test = (R_test,M)
             
-            len_C = 4*M+7 #only for special case: non-coulomb pair pot            
+            len_C = 4*M+7 #only for special case: non-coulomb pair pot  
+            
+            '''
+            #v1: parameter's range set in f and uses multirestart method
             #Accuracy evaluation:
             print(">>> Accuracy evaluation:")
             #special augmentation for M >= 2: C[M-1] = C[2M-1] = C[3M-2] = C[4M+2] = 0
@@ -66,12 +74,74 @@ if __name__ == "__main__":
             rmse_test = pmodel.RMSE(V_pred, V_test)
             print("C = ",C)
             print("RMSE test = ",rmse_test)
+            '''
+            
+            #v2: set params here and uses standard opt method:
+            
+            #Accuracy evaluation:
+            print(">>> Accuracy evaluation:")
+            #special augmentation for M >= 2: a_m = b_m = c_m = d_m = 0 ||| C[M-1] = C[2M-1] = C[3M-2] = C[4M+2] = 0 --> INCORRECT!!
+            if M >= 2:
+                #print("prev C = ",C)
+                C_params = Parameters()
+                #use previous C with augmentation:
+                a = C[: prev_M]; a = np.hstack((a, 0))
+                b = C[prev_M : 2*prev_M]; b = np.hstack((b, 0))
+                c = C[2*prev_M : 3*prev_M+4]; c = np.hstack((c, 0))
+                d = C[3*prev_M+4 : 4*prev_M+7]; d = np.hstack((d, 0))
+                C = np.hstack((a,b,c,d)) #union into one C
+                #print("current C =", C)
+                #transform to C_params:
+                C_params = Parameters()
+                for i in range(M): #a:
+                    C_params.add(name="c"+str(i), value=C[i], min=-np.inf, max=np.inf)
+                for i in range(M, 2*M): #b:
+                    if i == M:
+                        C_params.add(name="c"+str(i), value=C[i], min=-np.inf, max=np.inf)
+                    else:
+                        C_params.add(name="c"+str(i), value=C[i], min=0, max=np.inf)
+                for i in range(2*M, 3*M+4): #c:
+                    C_params.add(name="c"+str(i), value=C[i], min=-np.inf, max=np.inf)
+                for i in range(3*M+4, 4*M+7): #d:
+                    C_params.add(name="c"+str(i), value=C[i], min=0, max=np.inf)
                 
+                out = minimize(pmodel.f_obj_diatomic_pot_res_lmfit, C_params, args=(F, V_train, *arg_train), method="bfgs") #minimize
+            else:
+                #generate init C_params:
+                C = np.random.uniform(-1, 1, len_C)
+                C_params = Parameters()
+                for i in range(M): #a:
+                    C_params.add(name="c"+str(i), value=C[i], min=-np.inf, max=np.inf)
+                for i in range(M, 2*M): #b:
+                    if i == M:
+                        C_params.add(name="c"+str(i), value=C[i], min=-np.inf, max=np.inf)
+                    else:
+                        C_params.add(name="c"+str(i), value=C[i], min=0, max=np.inf)
+                for i in range(2*M, 3*M+4): #c:
+                    C_params.add(name="c"+str(i), value=C[i], min=-np.inf, max=np.inf)
+                for i in range(3*M+4, 4*M+7): #d:
+                    C_params.add(name="c"+str(i), value=C[i], min=0, max=np.inf)
+                out = minimize(pmodel.f_obj_diatomic_pot_res_lmfit, C_params, args=(F, V_train, *arg_train), method="bfgs")
+            C = np.array([out.params[key] for key in out.params]) #reconstruct c
+            print(len_C)
+            #get the prediction from training data:
+            V_pred = F(C, *arg_train)
+            rmse_train = pmodel.RMSE(V_pred, V_train)
+            print("rmse_train =",rmse_train)
+            
+            #get test pred:
+            V_pred = F(C, *arg_test)
+            rmse_test = pmodel.RMSE(V_pred, V_test)
+            print("rmse_test =",rmse_test)
+            
             #append to data:
             data["num_params"].append(len_C); data["degree"].append(M)
             data["ansatz_2_acc_train"].append(rmse_train); #train
             data["ansatz_2_acc_test"].append(rmse_test); #test
             data["ansatz_2_C"].append(C); 
+            
+            #store M for next iter:
+            prev_M = M
         
         end_time = time.time() #timer
         elapsed = end_time-init_time
@@ -79,7 +149,7 @@ if __name__ == "__main__":
         print("elapsed time =",elapsed,"s")
         print(data)
         #write to pandas, then to file:
-        filename = "result/spec_split_data_fit_"+mol+"_"+datetime.datetime.now().strftime('%d%m%Y')+".pkl"
+        filename = "result/spec_split_data_fit_"+mol+"_"+datetime.datetime.now().strftime('%d%m%y_%H%M%S')+".pkl"
         with open(filename, 'wb') as handle:
             pickle.dump(data, handle)
     

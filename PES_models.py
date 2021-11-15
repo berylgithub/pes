@@ -237,6 +237,7 @@ def f_diatomic_ansatz_2(C, *args):
     c = C[2*M : 3*M+4]
     d = C[3*M+4 : 4*M+7]
     
+    '''
     #b_i \ge 0 for i > 1:
     for i in range(1, M):
         if b[i] < 0:
@@ -246,6 +247,7 @@ def f_diatomic_ansatz_2(C, *args):
     for i in range(M):
         if d[i] < 0:
             d[i] = -d[i]
+    '''
     
     #evaluates P:
     #the last indexed coefficients are outside of the loop, so less index operations
@@ -479,18 +481,27 @@ def multistart(n, delta, F, V, *F_args, len_C=100, C=None, mode='default', verbo
     #randomize by power x2 each loop and alternate sign:
     #n =  max loop
     #delta = minimum RMSE
-    #if C is not None, then use C
+    #if C is not None, then use C (in the format of lmfit params)
     #the data are global var
     pwr = 1
     min_rmse = np.inf
     #min_C = np.zeros(5)
     min_C = np.zeros(len_C)
     for k in range(n):
+        '''
+        #v1: wrap C_params here
         if (C is not None) and (k==0): #if C is non empty and the start of the loop, for custom C
             C0 = C
         else:
             C0 = np.random.uniform(-1, 1, len_C)*pwr
-        C_params = lmfit_params_wrap(C0, mode)
+        '''
+
+        #v2: the provided C is in the format of C_params :
+        if (C is not None) and (k==0):
+            C_params = C
+        else:
+            C0 = np.random.uniform(-1, 1, len_C)*pwr
+            C_params = lmfit_params_wrap(C0, mode)
         while True: #NaN exception handler:
             try:
                 #minimization routine and objective function here:
@@ -505,8 +516,7 @@ def multistart(n, delta, F, V, *F_args, len_C=100, C=None, mode='default', verbo
                 continue
         #transform out.params to C array:
         C = np.array([out.params[key] for key in out.params])
-        #special condition for 3rd ansatz: C0->|C0|, C3->|C3|:
-        #C[0] = np.abs(C[0]); C[3] = np.abs(C[3])
+
         #get the predicted V
         V_pred = F(C, *F_args)
         rmse = RMSE(V_pred, V)
