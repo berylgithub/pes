@@ -90,7 +90,6 @@ if __name__ == "__main__":
                 c = C[2*prev_M : 3*prev_M+4]; c = np.hstack((c, 0))
                 d = C[3*prev_M+4 : 4*prev_M+7]; d = np.hstack((d, 0))
                 C = np.hstack((a,b,c,d)) #union into one C
-                #print("current C =", C)
                 #transform to C_params:
                 C_params = Parameters()
                 for i in range(M): #a:
@@ -105,8 +104,15 @@ if __name__ == "__main__":
                 for i in range(3*M+4, 4*M+7): #d:
                     C_params.add(name="c"+str(i), value=C[i], min=0, max=np.inf)
                 
-                out = minimize(pmodel.f_obj_diatomic_pot_res_lmfit, C_params, args=(F, V_train, *arg_train), method="bfgs") #minimize
+                '''
+                #v2:
+                out = minimize(pmodel.f_obj_diatomic_pot_res_lmfit, C_params, args=(F, V_train, *arg_train), method="bfgs") #minimize 
+                '''
+                
+                rmse_train, C = pmodel.multiple_multistart(restarts, powers, delta, F, V_train, *arg_train, len_C=len_C, C=C_params, mode="default")
             else:
+                '''
+                #v2:
                 #generate init C_params:
                 C = np.random.uniform(-1, 1, len_C)
                 C_params = Parameters()
@@ -122,13 +128,17 @@ if __name__ == "__main__":
                 for i in range(3*M+4, 4*M+7): #d:
                     C_params.add(name="c"+str(i), value=C[i], min=0, max=np.inf)
                 out = minimize(pmodel.f_obj_diatomic_pot_res_lmfit, C_params, args=(F, V_train, *arg_train), method="bfgs")
+                '''
+                rmse_train, C = pmodel.multiple_multistart(restarts, powers, delta, F, V_train, *arg_train, len_C=len_C, mode="default")
+            '''
+            #v2:
             C = np.array([out.params[key] for key in out.params]) #reconstruct c
-            print(len_C)
             #get the prediction from training data:
             V_pred = F(C, *arg_train)
             rmse_train = pmodel.RMSE(V_pred, V_train)
+            '''
             print("rmse_train =",rmse_train)
-            
+
             #get test pred:
             V_pred = F(C, *arg_test)
             rmse_test = pmodel.RMSE(V_pred, V_test)
