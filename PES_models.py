@@ -226,7 +226,45 @@ def f_diatomic_ansatz_1(C, *args): #ansatz 0 was the f_diatomic_vdw
     return V
 
 
-## CHIPR models:
+def f_diatomic_ansatz_2(C, *args):
+    '''rational potential without Z, total of 4M+7 parameters'''
+    R = args[0]
+    M = args[1] #degree of pol
+    
+    #coefficients:
+    a = C[: M]
+    b = C[M : 2*M]
+    c = C[2*M : 3*M+4]
+    d = C[3*M+4 : 4*M+7]
+    
+    #b_i \ge 0 for i > 1:
+    for i in range(1, M):
+        if b[i] < 0:
+            b[i] = -b[i]
+    
+    #d_i \ge 0 for i > 0:
+    for i in range(M):
+        if d[i] < 0:
+            d[i] = -d[i]
+    
+    #evaluates P:
+    #the last indexed coefficients are outside of the loop, so less index operations
+    P = c[-2]
+    for i in range(M): #i=0,1...m-1
+        P *= (R - a[i])**2 + b[i]*R
+           
+    #evaluates Q:
+    Q = (R + d[-1])*R
+    for i in range(M+2): #i=0,1,..m+1
+        Q *= (R - c[i])**2 + d[i]*R
+    
+    #the rational potential:
+    V = c[-1] + (P/Q)
+    
+    return V
+    
+#######################################################
+### CHIPR models: 
 ### for OH+:
 def f_diatomic_chipr_ohplus(C, *args):
     '''
