@@ -16,6 +16,72 @@ if __name__ == "__main__":
     
     '''=======eof time eval========='''
     
+    def special_split_fit():
+        '''only for acc of the non-Coulomb ansatz'''
+        from sklearn.model_selection import train_test_split
+        
+        list_data = np.load('data/hxoy_data.npy', allow_pickle=True)
+        list_data = list_data[()]
+        
+        mol = "OH+"
+        qidxes = pdata.query_one_var_indices(mol, "mol", list_data) #pick one
+        R = list_data[qidxes[1]]["R"]; V = list_data[qidxes[1]]["V"]
+        
+        test_size = 0.25
+        R_train, R_test, V_train, V_test = train_test_split(R, V, test_size=test_size, random_state=0) #split data
+
+        F = pmodel.f_diatomic_ansatz_2
+        F_name = "ansatz_2"
+        
+        restarts = int(10); powers = int(3); # number of optimization restarts and powers for random number generations
+        delta = 1e-5
+        
+        #no Z
+        data = {}
+        data["test_size"] = test_size
+        data["num_params"] = []
+        data["opt_restart"] = restarts; data["opt_power"] = powers; data["opt_delta"] = delta
+        data["ansatz_2_acc_train"] = []; data["ansatz_2_acc_test"] = []; data["ansatz_2_C"] = []
+        data["degree"] = []
+        
+        max_M = 20
+        init_time = time.time() #timer
+        C = None #placeholder
+        for M in range(1, max_M+1): #include the last one in this case            
+            print(">>>>> M =",M)
+            arg_train = (R_train,M)
+            arg_test = (R_test,M)
+            
+            len_C = 4*M+7 #only for special case: non-coulomb pair pot            
+            #Accuracy evaluation:
+            print(">>> Accuracy evaluation:")
+            #special augmentation for M >= 2: C[M-1] = C[2M-1] = C[3M-2] = C[4M+2] = 0
+            if M >= 2:
+                print("prev C = ",C)
+                C[M-1] = C[2*M-1] = C[3*M-2] = C[4*M+2] = 0
+                rmse_train, C = pmodel.multiple_multistart(restarts, powers, delta, F, V_train, *arg_train, len_C=len_C, C=C, mode="default") #use prev C
+            else:
+                rmse_train, C = pmodel.multiple_multistart(restarts, powers, delta, F, V_train, *arg_train, len_C=len_C, mode="default")
+            V_pred = F(C, *arg_test)
+            rmse_test = pmodel.RMSE(V_pred, V_test)
+            print("C = ",C)
+            print("RMSE test = ",rmse_test)
+                
+            #append to data:
+            data["num_params"].append(len_C); data["degree"].append(M)
+            data["ansatz_2_acc_train"].append(rmse_train); #train
+            data["ansatz_2_acc_test"].append(rmse_test); #test
+            data["ansatz_2_C"].append(C); 
+        
+        end_time = time.time() #timer
+        elapsed = end_time-init_time
+        data["simulation_time"] = elapsed
+        print("elapsed time =",elapsed,"s")
+        print(data)
+        #write to pandas, then to file:
+        filename = "result/spec_split_data_fit_"+mol+"_"+datetime.datetime.now().strftime('%d%m%Y')+".pkl"
+        with open(filename, 'wb') as handle:
+            pickle.dump(data, handle)
     
     def performance_comparison():
         '''compares the performance of each method'''
@@ -121,6 +187,7 @@ if __name__ == "__main__":
             filename = "result/performance_"+datetime.datetime.now().strftime('%d%m%Y')+".pkl"
             with open(filename, 'wb') as handle:
                 pickle.dump(data, handle)
+    
     
     def split_data_fit_performance():
         '''split the data for training and testing'''
@@ -411,7 +478,7 @@ if __name__ == "__main__":
         
         max_M = 20
         for M in range(1, max_M+1): #include the last one in this case
-            min_train_rmses = [np.inf]; min_test_rmses = [np.inf]; min_Cs = [None]
+            min_train_rmse = np.inf; min_test_rmse = np.inf; min_C = None
             fold = 0
             for train_index, test_index in kf.split(R):
                 print(">>> fold = ",fold)
@@ -428,17 +495,24 @@ if __name__ == "__main__":
                 
                 #Accuracy evaluation:
                 print(">>> Accuracy evaluation:")
-                prev_C = None #placeholder for previous parameters
-
-                #special augmentation for M >= 2:
-                    
-                rmse_train, C = pmodel.multiple_multistart(restarts, powers, delta, F, V_train, *arg_train, len_C=len_C, mode="default")
+                #special augmentation for M >= 2: C[M-1] = C[2M-1] = C[3M-2] = C[4M+2] = 0
+                if M >= 2:
+                     C[M-1] = C[2*M-1] = C[3*M-2] = C[4*M+2] = 0
+                     rmse_train, C = pmodel.multiple_multistart(restarts, powers, delta, F, V_train, *arg_train, len_C=len_C, C=C, mode="default")
+                else:
+                    rmse_train, C = pmodel.multiple_multistart(restarts, powers, delta, F, V_train, *arg_train, len_C=len_C, mode="default")
                         
+                if rmse_test < min_test_rmse:
+                    min_test_rmse = rmse_test
+                    min_train_rmse = rmse_train
+                    min_C = C
+                    
+                
                 #append to data:
                 data["num_params"].append(len_C); data["degree"].append(M)
-                data["ansatz_2_acc_train"].append(min_train_rmses[0]); #train
-                data["ansatz_2_acc_test"].append(min_test_rmses[0]); #test
-                data["ansatz_2_C"].append(min_Cs[0]); 
+                data["ansatz_2_acc_train"].append(min_train_rmse); #train
+                data["ansatz_2_acc_test"].append(min_test_rmse); #test
+                data["ansatz_2_C"].append(min_C); 
         
                 
                 
@@ -624,4 +698,5 @@ if __name__ == "__main__":
             pickle.dump(data, handle)
         
     '''end of main functions, actual main starts below'''
-    cross_val_each_state_fit()
+    #cross_val_each_state_fit()
+    special_split_fit()

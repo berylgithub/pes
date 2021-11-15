@@ -475,17 +475,21 @@ def lmfit_params_wrap(C, mode): #wrapper for lmfit parameters
             C_params.add(name="c"+str(i), value=val, min=-np.inf, max=np.inf)
     return C_params
 
-def multistart(n, delta, F, V, *F_args, len_C=100, mode='default', verbose=False):
+def multistart(n, delta, F, V, *F_args, len_C=100, C=None, mode='default', verbose=False):
     #randomize by power x2 each loop and alternate sign:
     #n =  max loop
     #delta = minimum RMSE
+    #if C is not None, then use C
     #the data are global var
     pwr = 1
     min_rmse = np.inf
     #min_C = np.zeros(5)
     min_C = np.zeros(len_C)
     for k in range(n):
-        C0 = np.random.uniform(-1, 1, len_C)*pwr
+        if (C is not None) and (k==0): #if C is non empty and the start of the loop, for custom C
+            C0 = C
+        else:
+            C0 = np.random.uniform(-1, 1, len_C)*pwr
         C_params = lmfit_params_wrap(C0, mode)
         while True: #NaN exception handler:
             try:
@@ -520,7 +524,7 @@ def multistart(n, delta, F, V, *F_args, len_C=100, mode='default', verbose=False
             pwr *= -1 #alternate sign
     return min_rmse, min_C
 
-def multiple_multistart(k, n, delta, F, V, *F_args, len_C=30, mode="default", verbose=False):
+def multiple_multistart(k, n, delta, F, V, *F_args, len_C=30, C=None, mode="default", verbose=False):
     #k = number of restarts
     min_rmse = np.inf; min_C = None
     for i in range(k):
