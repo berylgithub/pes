@@ -564,3 +564,12 @@ def evaluate_efficiency(Fs, N, args, len_C):
         diff = time.time()-start
         times.append(diff)
     return times
+
+def evaluate_efficiency_single(F, N, len_C, *arg):
+    #single function only
+    C = np.random.rand(len_C)
+    start = time.time()
+    for j in range(N):
+        F(C, *arg)
+    diff = time.time()-start
+    return diff

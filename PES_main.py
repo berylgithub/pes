@@ -17,8 +17,48 @@ import time, datetime, warnings
 
 if __name__ == "__main__":
     '''========time eval only:========='''
-    
-    
+    def time_eval():
+        '''evaluates the efficiency of a single function'''
+        list_data = np.load('data/hxoy_data.npy', allow_pickle=True)
+        list_data = list_data[()]
+        
+        mol = "OH+"
+        qidxes = pdata.query_one_var_indices(mol, "mol", list_data) #pick one
+        R = list_data[qidxes[1]]["R"]; V = list_data[qidxes[1]]["V"]
+        
+        F = pmodel.f_diatomic_ansatz_2
+        F_name = "ansatz2"
+        loop = int(1e4); n = 20;
+        
+        data = {}
+        data["F_name"] = F_name
+        data["num_params"] = []; data["degree"] = []
+        data["times"] = []
+        
+        max_M = 20
+        for M in range(1, max_M+1): #include the last one in this case      
+            #Time evaluation:
+            print(">>> Time evaluation:")
+            arg = (R,M) 
+            len_C = 4*M+7
+            time = 0
+            print(*arg)
+            for i in range(n):
+                time += pmodel.evaluate_efficiency_single(F, loop, len_C, *arg)
+            mean_t = time/n
+            print("evaluation on",loop,"runs")
+            print("functions",F_name)
+            print("running times averaged over",n,"runs",mean_t)
+            
+            data["num_params"].append(len_C); data["degree"].append(M)
+            data["times"].append(mean_t)
+        
+        print(data)
+        filename = "result/time_eval_"+F_name+"_"+datetime.datetime.now().strftime('%d%m%y_%H%M%S')+".pkl"
+        with open(filename, 'wb') as handle:
+            pickle.dump(data, handle)
+         
+        
     '''=======eof time eval========='''
     
     def special_split_fit():
@@ -779,4 +819,5 @@ if __name__ == "__main__":
         
     '''end of main functions, actual main starts below'''
     #cross_val_each_state_fit()
-    special_split_fit()
+    #special_split_fit()
+    time_eval()
