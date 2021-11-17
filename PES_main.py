@@ -26,8 +26,12 @@ if __name__ == "__main__":
         qidxes = pdata.query_one_var_indices(mol, "mol", list_data) #pick one
         R = list_data[qidxes[1]]["R"]; V = list_data[qidxes[1]]["V"]
         
-        F = pmodel.f_diatomic_ansatz_2
-        F_name = "ansatz2"
+        #F = pmodel.f_diatomic_ansatz_2
+        #F_name = "ansatz2"
+        
+        F = pmodel.f_diatomic_chipr_ohplus
+        F_name = "chipr"
+        
         loop = int(1e4); n = 20;
         
         data = {}
@@ -36,13 +40,22 @@ if __name__ == "__main__":
         data["times"] = []
         
         max_M = 20
-        for M in range(1, max_M+1): #include the last one in this case      
-            #Time evaluation:
+        for M in range(1, max_M+1): # include the last one in this case      
+            # Time evaluation:
             print(">>> Time evaluation:")
-            arg = (R,M) 
-            len_C = 4*M+7
+            print("M = ", M)
+            # for ansatz2:
+            #arg = (R,M) 
+            #len_C = 4*M+7
+            
+            # for chipr:
+            m = M - 1 #for chipr only
+            len_C = 3*(m+1)+M;
+            arg = (R,8,M,m)
+            
+            print("num_params = ",len_C)
+
             time = 0
-            print(*arg)
             for i in range(n):
                 time += pmodel.evaluate_efficiency_single(F, loop, len_C, *arg)
             mean_t = time/n
@@ -58,7 +71,7 @@ if __name__ == "__main__":
         with open(filename, 'wb') as handle:
             pickle.dump(data, handle)
          
-        
+    
     '''=======eof time eval========='''
     
     def special_split_fit():
@@ -806,6 +819,6 @@ if __name__ == "__main__":
     '''end of main functions, actual main starts below'''
     #cross_val_each_state_fit()
     #special_split_fit()
-    #time_eval()
+    time_eval()
     #special_split_fit()
-    split_data_fit_performance()
+    #split_data_fit_performance()
