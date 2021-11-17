@@ -65,6 +65,8 @@ if __name__ == "__main__":
         '''only for acc of the non-Coulomb ansatz'''
         from sklearn.model_selection import train_test_split
         
+        method = "multirestart" # "direct" or "multirestart" for v2 and v3 respectively
+        
         list_data = np.load('data/hxoy_data.npy', allow_pickle=True)
         list_data = list_data[()]
         
@@ -83,6 +85,7 @@ if __name__ == "__main__":
         
         #no Z
         data = {}
+        data["method"] = method
         data["test_size"] = test_size
         data["num_params"] = []
         data["opt_restart"] = restarts; data["opt_power"] = powers; data["opt_delta"] = delta
@@ -99,84 +102,64 @@ if __name__ == "__main__":
             
             len_C = 4*M+7 #only for special case: non-coulomb pair pot  
             
-            '''
-            #v1: parameter's range set in f and uses multirestart method
-            #Accuracy evaluation:
-            print(">>> Accuracy evaluation:")
-            #special augmentation for M >= 2: C[M-1] = C[2M-1] = C[3M-2] = C[4M+2] = 0
-            if M >= 2:
-                print("prev C = ",C)
-                C[M-1] = C[2*M-1] = C[3*M-2] = C[4*M+2] = 0
-                rmse_train, C = pmodel.multiple_multistart(restarts, powers, delta, F, V_train, *arg_train, len_C=len_C, C=C, mode="default") #use prev C
-            else:
-                rmse_train, C = pmodel.multiple_multistart(restarts, powers, delta, F, V_train, *arg_train, len_C=len_C, mode="default")
-            V_pred = F(C, *arg_test)
-            rmse_test = pmodel.RMSE(V_pred, V_test)
-            print("C = ",C)
-            print("RMSE test = ",rmse_test)
-            '''
-            
             #v2: set params here and uses standard opt method:
-            
             #Accuracy evaluation:
             print(">>> Accuracy evaluation:")
-            #special augmentation for M >= 2: a_m = b_m = c_m = d_m = 0 ||| C[M-1] = C[2M-1] = C[3M-2] = C[4M+2] = 0 --> INCORRECT!!
+            #special augmentation for M >= 2: a_m = b_m = c_m = d_m = 0
             if M >= 2:
-                #print("prev C = ",C)
-                C_params = Parameters()
                 #use previous C with augmentation:
-                a = C[: prev_M]; a = np.hstack((a, 0))
-                b = C[prev_M : 2*prev_M]; b = np.hstack((b, 0))
-                c = C[2*prev_M : 3*prev_M+4]; c = np.hstack((c, 0))
-                d = C[3*prev_M+4 : 4*prev_M+7]; d = np.hstack((d, 0))
+                const = 0
+                a = C[: prev_M]; a = np.hstack((a, const))
+                b = C[prev_M : 2*prev_M]; b = np.hstack((b, const))
+                c = C[2*prev_M : 3*prev_M+4]; c = np.insert(c, M-2, const) #insert into the M index
+                d = C[3*prev_M+4 : 4*prev_M+7]; d = np.insert(d, M-2, const) #insert into the M index
+                
                 C = np.hstack((a,b,c,d)) #union into one C
-                #transform to C_params:
-                C_params = Parameters()
-                for i in range(M): #a:
-                    C_params.add(name="c"+str(i), value=C[i], min=-np.inf, max=np.inf)
-                for i in range(M, 2*M): #b:
-                    if i == M:
-                        C_params.add(name="c"+str(i), value=C[i], min=-np.inf, max=np.inf)
-                    else:
-                        C_params.add(name="c"+str(i), value=C[i], min=0, max=np.inf)
-                for i in range(2*M, 3*M+4): #c:
-                    C_params.add(name="c"+str(i), value=C[i], min=-np.inf, max=np.inf)
-                for i in range(3*M+4, 4*M+7): #d:
-                    C_params.add(name="c"+str(i), value=C[i], min=0, max=np.inf)
                 
-                '''
-                #v2:
-                out = minimize(pmodel.f_obj_diatomic_pot_res_lmfit, C_params, args=(F, V_train, *arg_train), method="bfgs") #minimize 
-                '''
+                #RMSE pre-check:
+                V_pred_train = F(C, *arg_train)
+                rmse_pc_train = pmodel.RMSE(V_pred_train, V_train)
                 
-                rmse_train, C = pmodel.multiple_multistart(restarts, powers, delta, F, V_train, *arg_train, len_C=len_C, C=C_params, mode="default")
+                V_pred_test = F(C, *arg_test)
+                rmse_pc_test = pmodel.RMSE(V_pred_test, V_test)
+                print("RMSE pre-check = ", rmse_pc_train, rmse_pc_test)
+                print(C)
+                
             else:
-                '''
                 #v2:
                 #generate init C_params:
                 C = np.random.uniform(-1, 1, len_C)
-                C_params = Parameters()
-                for i in range(M): #a:
-                    C_params.add(name="c"+str(i), value=C[i], min=-np.inf, max=np.inf)
-                for i in range(M, 2*M): #b:
-                    if i == M:
-                        C_params.add(name="c"+str(i), value=C[i], min=-np.inf, max=np.inf)
-                    else:
-                        C_params.add(name="c"+str(i), value=C[i], min=0, max=np.inf)
-                for i in range(2*M, 3*M+4): #c:
-                    C_params.add(name="c"+str(i), value=C[i], min=-np.inf, max=np.inf)
-                for i in range(3*M+4, 4*M+7): #d:
-                    C_params.add(name="c"+str(i), value=C[i], min=0, max=np.inf)
-                out = minimize(pmodel.f_obj_diatomic_pot_res_lmfit, C_params, args=(F, V_train, *arg_train), method="bfgs")
-                '''
-                rmse_train, C = pmodel.multiple_multistart(restarts, powers, delta, F, V_train, *arg_train, len_C=len_C, mode="default")
+            
+            # the non zero conditions causes any x < 0 -> x = 0 !!, this lowers RMSE, will need to use lmfit custom wrapper for non coulomb!!
+            C_params = pmodel.lmfit_params_wrap_ansatz2(C)
+                
+            #RMSE 2nd pre-check:
+            C = np.array([C_params[key] for key in C_params])
+            V_pred_train = F(C, *arg_train)
+            rmse_pc_train = pmodel.RMSE(V_pred_train, V_train)
+            
+            V_pred_test = F(C, *arg_test)
+            rmse_pc_test = pmodel.RMSE(V_pred_test, V_test)
+            print("RMSE 2nd pre-check = ", rmse_pc_train, rmse_pc_test)
+            print(C)
+            
+            
+            #v3: multirestart with definition of C_params outside
+            #for ansatz2:
+            rmse_train, C = pmodel.multiple_multistart(restarts, powers, delta, F, V_train, *arg_train, len_C=len_C, C=C_params, wrapper=pmodel.lmfit_params_wrap_ansatz2, mode="default")
+            
+            
             '''
             #v2:
+            out = minimize(pmodel.f_obj_diatomic_pot_res_lmfit, C_params, args=(F, V_train, *arg_train), method="bfgs")
+            
             C = np.array([out.params[key] for key in out.params]) #reconstruct c
             #get the prediction from training data:
             V_pred = F(C, *arg_train)
             rmse_train = pmodel.RMSE(V_pred, V_train)
+            # end of v2
             '''
+            
             print("rmse_train =",rmse_train)
 
             #get test pred:
@@ -198,8 +181,8 @@ if __name__ == "__main__":
         data["simulation_time"] = elapsed
         print("elapsed time =",elapsed,"s")
         print(data)
-        #write to pandas, then to file:
-        filename = "result/spec_split_data_fit_"+mol+"_"+datetime.datetime.now().strftime('%d%m%y_%H%M%S')+".pkl"
+        
+        filename = "result/spec_split_data_fit_"+method+"_"+mol+"_"+datetime.datetime.now().strftime('%d%m%y_%H%M%S')+".pkl"
         with open(filename, 'wb') as handle:
             pickle.dump(data, handle)
     
@@ -271,6 +254,7 @@ if __name__ == "__main__":
                     print("M = ",M, ", m (chipr) =",m)
                     print("parameters = ",ansatz_par)
                     
+                    '''
                     #Time evaluation:
                     print(">>> Time evaluation:")
                     args = [(R,Z,M), (R,Z,M,m)] 
@@ -282,6 +266,7 @@ if __name__ == "__main__":
                     print("evaluation on",loop,"runs")
                     print("functions",F_names)
                     print("running times averaged over",n,"runs",mean_t)
+                    '''
                     
                     #Accuracy evaluation:
                     print(">>> Accuracy evaluation:")
@@ -294,10 +279,10 @@ if __name__ == "__main__":
                         
                     #append to data:
                     data["num_params"].append(len_C); data["degree"].append(M)
-                    data["ansatz_1_t"].append(mean_t[0]); data["chipr_t"].append(mean_t[1])
-                    data["ansatz_1_acc"].append(rmses[0]); data["chipr_acc"].append(rmses[1])
-                    data["ansatz_1_C"].append(Cs[0]); data["chipr_C"].append(Cs[1])
-            
+                    #data["ansatz_1_t"].append(mean_t[0]); data["ansatz_1_acc"].append(rmses[0]); data["ansatz_1_C"].append(Cs[0]); 
+                    #data["chipr_t"].append(mean_t[1]); 
+                    data["chipr_acc"].append(rmses[1]); data["chipr_C"].append(Cs[1])
+                    
             end_time = time.time() #timer
             elapsed = end_time-init_time
             data["simulation_time"] = elapsed
@@ -319,13 +304,11 @@ if __name__ == "__main__":
         mol = "OH+"
         qidxes = pdata.query_one_var_indices(mol, "mol", list_data) #pick one
         R = list_data[qidxes[1]]["R"]; V = list_data[qidxes[1]]["V"]
-        print(R, V)
-        
+
         R_train, R_test, V_train, V_test = train_test_split(R, V, test_size=0.25, random_state=0) #split data
-        print(len(R_train), len(R_test))
-        print(R_train, V_train)
-        
-        Fs = [pmodel.f_diatomic_ansatz_1, pmodel.f_diatomic_chipr_ohplus]
+
+        #Fs = [pmodel.f_diatomic_ansatz_1, pmodel.f_diatomic_chipr_ohplus]
+        Fs = [pmodel.f_diatomic_chipr_ohplus]
         F_names = ["ansatz_1","CHIPR"]
         
         restarts = int(10); powers = int(3); # number of optimization restarts and powers for random number generations
@@ -341,52 +324,55 @@ if __name__ == "__main__":
         data["ansatz_1_t"] = []; data["ansatz_1_acc_train"] = []; data["ansatz_1_acc_test"] = []; data["ansatz_1_C"] = []
         data["degree"] = []
         
-        max_deg = 30 #maximum polynomial degree
+        max_deg = 22 #maximum polynomial degree
         init_time = time.time() #timer
         with warnings.catch_warnings(record=True): #required, otherwise the program will abruptly stops!
-            for M in range(2, max_deg):
+            for M in range(1, max_deg+1):
                 '''for ansatz 0:'''
                 #if (2*M - 2)%3 == 0: # must satisfy this
                     #m = int((2*M - 2)/3)
                     #ansatz_par = 3*M+1
                 '''for ansatz 1:'''
-                if M%4 == 0: #multiple of 4 only 
-                    m = M - 1 #for new ansatz
-                    ansatz_par = 4*M
-                    chipr_par = 3*(m+1)+M;
-                    print("===========================")
-                    print("M = ",M, ", m (chipr) =",m)
-                    print("parameters = ",ansatz_par)
+                #if M%4 == 0: #multiple of 4 only 
+                m = M - 1 #for new ansatz
+                ansatz_par = 4*M
+                chipr_par = 3*(m+1)+M;
+                print("===========================")
+                print("M = ",M, ", m (chipr) =",m)
+                print("parameters = ",ansatz_par)
+                
+                #args = [(R,Z,M), (R,Z,M,m)] 
+                #for both F test:
+                #args_train = [(R_train,Z,M), (R_train,Z,M,m)] 
+                #args_test = [(R_test,Z,M), (R_test,Z,M,m)]
+                
+                args_train = [(R_train,Z,M,m)]
+                args_test = [(R_test,Z,M,m)]
+                
+                len_C = ansatz_par #coef length, min(len) = 3M+1
+                print("functions",F_names)
+                #Accuracy evaluation:
+                print(">>> Accuracy evaluation:")
+                rmses_train = []; rmses_test = []; Cs = []
+                for i, f in enumerate(Fs):
+                    rmse_train, C = pmodel.multiple_multistart(restarts, powers, delta, f, V_train, *args_train[i], len_C=len_C, mode="default")
+                    V_pred = f(C, *args_test[i])
+                    rmse_test = pmodel.RMSE(V_test, V_pred)
+                    rmses_train.append(rmse_train); rmses_test.append(rmse_test)
+                    Cs.append(C)
+                    print("rmse test = ",rmse_test)
                     
-                    #args = [(R,Z,M), (R,Z,M,m)] 
-                    args_train = [(R_train,Z,M), (R_train,Z,M,m)] 
-                    args_test = [(R_test,Z,M), (R_test,Z,M,m)]
-                    len_C = ansatz_par #coef length, min(len) = 3M+1
-                    print("functions",F_names)
-                    #Accuracy evaluation:
-                    print(">>> Accuracy evaluation:")
-                    rmses_train = []; rmses_test = []; Cs = []
-                    for i, f in enumerate(Fs):
-                        rmse_train, C = pmodel.multiple_multistart(restarts, powers, delta, f, V_train, *args_train[i], len_C=len_C, mode="default")
-                        V_pred = f(C, *args_test[i])
-                        rmse_test = pmodel.RMSE(V_test, V_pred)
-                        rmses_train.append(rmse_train); rmses_test.append(rmse_test)
-                        Cs.append(C)
-                        print("rmse test = ",rmse_test)
-                        
-                    #append to data:
-                    data["num_params"].append(len_C); data["degree"].append(M)
-                    data["ansatz_1_acc_train"].append(rmses_train[0]); data["chipr_acc_train"].append(rmses_train[1]) #train
-                    data["ansatz_1_acc_test"].append(rmses_test[0]); data["chipr_acc_test"].append(rmses_test[1]) #test
-                    data["ansatz_1_C"].append(Cs[0]); data["chipr_C"].append(Cs[1])
+                #append to data:
+                data["num_params"].append(len_C); data["degree"].append(M)
+                #data["ansatz_1_acc_train"].append(rmses_train[0]); data["ansatz_1_acc_test"].append(rmses_test[0]); data["ansatz_1_C"].append(Cs[0]); 
+                data["chipr_acc_train"].append(rmses_train[0]); data["chipr_acc_test"].append(rmses_test[0]); data["chipr_C"].append(Cs[0]) #shift one if only one is tested
             
             end_time = time.time() #timer
             elapsed = end_time-init_time
             data["simulation_time"] = elapsed
             print("elapsed time =",elapsed,"s")
             print(data)
-            #write to pandas, then to file:
-            filename = "result/split_data_fit_OH+"+datetime.datetime.now().strftime('%d%m%Y')+".pkl"
+            filename = "result/split_data_fit_OH+"+datetime.datetime.now().strftime('%d%m%y_%H%M%S')+".pkl"
             with open(filename, 'wb') as handle:
                 pickle.dump(data, handle)
     
@@ -820,4 +806,6 @@ if __name__ == "__main__":
     '''end of main functions, actual main starts below'''
     #cross_val_each_state_fit()
     #special_split_fit()
-    time_eval()
+    #time_eval()
+    #special_split_fit()
+    split_data_fit_performance()
