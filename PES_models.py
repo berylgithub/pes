@@ -477,7 +477,24 @@ def lmfit_params_wrap(C, mode): #wrapper for lmfit parameters
             C_params.add(name="c"+str(i), value=val, min=-np.inf, max=np.inf)
     return C_params
 
-def multistart(n, delta, F, V, *F_args, len_C=100, C=None, mode='default', verbose=False):
+def lmfit_params_wrap_ansatz2(C):
+    C_params = Parameters()
+    M = int((len(C)-7)/4)
+    for i in range(M): #a:
+        C_params.add(name="c"+str(i), value=C[i], min=-np.inf, max=np.inf)
+    for i in range(M, 2*M): #b:
+        if i == M:
+            C_params.add(name="c"+str(i), value=C[i], min=-np.inf, max=np.inf)
+        else:
+            C_params.add(name="c"+str(i), value=C[i], min=0, max=np.inf)
+    for i in range(2*M, 3*M+4): #c:
+        C_params.add(name="c"+str(i), value=C[i], min=-np.inf, max=np.inf)
+    for i in range(3*M+4, 4*M+7): #d:
+        C_params.add(name="c"+str(i), value=C[i], min=0, max=np.inf)
+    
+    return C_params
+
+def multistart(n, delta, F, V, *F_args, len_C=100, C=None, wrapper=None, mode='default', verbose=False):
     #randomize by power x2 each loop and alternate sign:
     #n =  max loop
     #delta = minimum RMSE
@@ -488,20 +505,15 @@ def multistart(n, delta, F, V, *F_args, len_C=100, C=None, mode='default', verbo
     #min_C = np.zeros(5)
     min_C = np.zeros(len_C)
     for k in range(n):
-        '''
-        #v1: wrap C_params here
-        if (C is not None) and (k==0): #if C is non empty and the start of the loop, for custom C
-            C0 = C
-        else:
-            C0 = np.random.uniform(-1, 1, len_C)*pwr
-        '''
-
         #v2: the provided C is in the format of C_params :
         if (C is not None) and (k==0):
             C_params = C
         else:
             C0 = np.random.uniform(-1, 1, len_C)*pwr
-            C_params = lmfit_params_wrap(C0, mode)
+            if wrapper: #custom wrapper
+                C_params = wrapper(C0)
+            else:
+                C_params = lmfit_params_wrap(C0, mode)
         while True: #NaN exception handler:
             try:
                 #minimization routine and objective function here:
@@ -512,7 +524,11 @@ def multistart(n, delta, F, V, *F_args, len_C=100, C=None, mode='default', verbo
                 if verbose:
                     print("ValueError!!, resetting C")
                 C0 = np.random.uniform(-1, 1, len_C)*pwr
-                C_params = lmfit_params_wrap(C0, mode)
+                
+                if wrapper:
+                    C_params = wrapper(C0)
+                else:
+                    C_params = lmfit_params_wrap(C0, mode)
                 continue
         #transform out.params to C array:
         C = np.array([out.params[key] for key in out.params])
@@ -534,16 +550,16 @@ def multistart(n, delta, F, V, *F_args, len_C=100, C=None, mode='default', verbo
             pwr *= -1 #alternate sign
     return min_rmse, min_C
 
-def multiple_multistart(k, n, delta, F, V, *F_args, len_C=30, C=None, mode="default", verbose=False):
+def multiple_multistart(k, n, delta, F, V, *F_args, len_C=30, C=None, wrapper=None, mode="default", verbose=False):
     #k = number of restarts
     min_rmse = np.inf; min_C = None
     for i in range(k):
-        res = multistart(n, delta, F, V, *F_args, len_C=len_C, mode=mode)
+        res = multistart(n, delta, F, V, *F_args, len_C=len_C, C=C, wrapper=wrapper, mode=mode)
         print(i,"th round is done")
-        rmse = res[0]; C = res[1];
+        rmse = res[0]; C_array = res[1];
         if rmse < min_rmse:
             min_rmse = rmse
-            min_C = C
+            min_C = C_array
             print("RMSE = ",rmse)
         if rmse <= delta:
             break
