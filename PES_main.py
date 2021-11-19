@@ -135,9 +135,7 @@ if __name__ == "__main__":
                 
                 V_pred_test = F(C, *arg_test)
                 rmse_pc_test = pmodel.RMSE(V_pred_test, V_test)
-                print("RMSE pre-check = ", rmse_pc_train, rmse_pc_test)
-                print(C)
-                
+                print("RMSE pre-check = ", rmse_pc_train, rmse_pc_test)                
             else:
                 #v2:
                 #generate init C_params:
@@ -153,8 +151,7 @@ if __name__ == "__main__":
             
             V_pred_test = F(C, *arg_test)
             rmse_pc_test = pmodel.RMSE(V_pred_test, V_test)
-            print("RMSE 2nd pre-check = ", rmse_pc_train, rmse_pc_test)
-            print(C)
+            print("RMSE 2nd pre-check = ", rmse_pc_train, rmse_pc_test)            
             
             
             #v3: multirestart with definition of C_params outside
@@ -165,7 +162,6 @@ if __name__ == "__main__":
             '''
             #v2:
             out = minimize(pmodel.f_obj_diatomic_pot_res_lmfit, C_params, args=(F, V_train, *arg_train), method="bfgs")
-            
             C = np.array([out.params[key] for key in out.params]) #reconstruct c
             #get the prediction from training data:
             V_pred = F(C, *arg_train)
@@ -193,11 +189,10 @@ if __name__ == "__main__":
         elapsed = end_time-init_time
         data["simulation_time"] = elapsed
         print("elapsed time =",elapsed,"s")
-        print(data)
-        
-        filename = "result/spec_split_data_fit_"+method+"_"+mol+"_"+datetime.datetime.now().strftime('%d%m%y_%H%M%S')+".pkl"
-        with open(filename, 'wb') as handle:
-            pickle.dump(data, handle)
+        #print(data)
+        #filename = "result/spec_split_data_fit_"+method+"_"+mol+"_"+datetime.datetime.now().strftime('%d%m%y_%H%M%S')+".pkl"
+        #with open(filename, 'wb') as handle:
+        #    pickle.dump(data, handle)
     
     def performance_comparison():
         '''compares the performance of each method'''
@@ -819,6 +814,6 @@ if __name__ == "__main__":
     '''end of main functions, actual main starts below'''
     #cross_val_each_state_fit()
     #special_split_fit()
-    time_eval()
-    #special_split_fit()
+    #time_eval()
+    special_split_fit()
     #split_data_fit_performance()

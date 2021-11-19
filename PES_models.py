@@ -536,6 +536,7 @@ def multistart(n, delta, F, V, *F_args, len_C=100, C=None, wrapper=None, mode='d
         #get the predicted V
         V_pred = F(C, *F_args)
         rmse = RMSE(V_pred, V)
+        print(k, rmse)
         #get the minimum rmse:
         if rmse < min_rmse:
             min_rmse = rmse
