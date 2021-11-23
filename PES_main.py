@@ -74,7 +74,7 @@ if __name__ == "__main__":
     
     '''=======eof time eval========='''
     
-    def special_split_fit():
+    def special_split_fit_ansatz2():
         '''only for acc of the non-Coulomb ansatz'''
         from sklearn.model_selection import train_test_split
         
@@ -181,6 +181,142 @@ if __name__ == "__main__":
             data["ansatz_2_acc_train"].append(rmse_train); #train
             data["ansatz_2_acc_test"].append(rmse_test); #test
             data["ansatz_2_C"].append(C); 
+            
+            #store M for next iter:
+            prev_M = M
+        
+        end_time = time.time() #timer
+        elapsed = end_time-init_time
+        data["simulation_time"] = elapsed
+        print("elapsed time =",elapsed,"s")
+        #print(data)
+        filename = "result/spec_split_data_fit_"+method+"_"+mol+"_"+datetime.datetime.now().strftime('%d%m%y_%H%M%S')+".pkl"
+        with open(filename, 'wb') as handle:
+            pickle.dump(data, handle)
+    
+    def special_split_fit_ansatz3():
+        '''ansatz3, with coulomb term, optimize only the new parameters'''
+        from sklearn.model_selection import train_test_split
+        
+        method = "multirestart" # "direct" or "multirestart" for v2 and v3 respectively
+        
+        list_data = np.load('data/hxoy_data.npy', allow_pickle=True)
+        list_data = list_data[()]
+        
+        mol = "OH+"
+        qidxes = pdata.query_one_var_indices(mol, "mol", list_data) #pick one
+        R = list_data[qidxes[1]]["R"]; V = list_data[qidxes[1]]["V"]
+        
+        test_size = 0.25
+        R_train, R_test, V_train, V_test = train_test_split(R, V, test_size=test_size, random_state=0) #split data
+
+        F = pmodel.f_diatomic_ansatz_3
+        F_name = "ansatz_3"
+        
+        restarts = int(10); powers = int(3); # number of optimization restarts and powers for random number generations
+        delta = 1e-5
+        Z = 8
+        
+        data = {}
+        data["method"] = method
+        data["test_size"] = test_size
+        data["num_params"] = []
+        data["opt_restart"] = restarts; data["opt_power"] = powers; data["opt_delta"] = delta
+        data["ansatz_3_acc_train"] = []; data["ansatz_3_acc_test"] = []; data["ansatz_3_C"] = []
+        data["degree"] = []
+        
+        max_M = 20
+        init_time = time.time() #timer
+        C = None; prev_M = None #placeholder
+        for M in range(1, max_M+1): #include the last one in this case            
+            print(">>>>> M =",M)
+            arg_train = (R_train,Z,M)
+            arg_test = (R_test,Z,M)
+            
+            len_C = 4*M+8
+            
+            #v2: set params here and uses standard opt method:
+            #Accuracy evaluation:
+            print(">>> Accuracy evaluation:")
+            #special augmentation for M >= 2: a_m = b_m = c_m = d_m = 0
+            if M >= 2:
+                #use previous C with augmentation:
+                const = 1e-3
+                a = C[: prev_M]; a = np.hstack((a, const))
+                b = C[prev_M : 2*prev_M]; b = np.hstack((b, const))
+                #c:                
+                c = C[2*prev_M : 3*prev_M+4]
+                ins_idx = len(c)-1
+                c = np.insert(c, ins_idx, const)
+                #d:
+                d = C[3*prev_M+4 : 4*prev_M+7]
+                ins_idx = len(d)
+                d = np.insert(d, ins_idx, const)
+                #R0:
+                R0 = C[-1]
+                #assemble C:
+                C = np.hstack((a,b,c,d,R0)) #union into one C
+                
+                #RMSE pre-check:
+                V_pred_train = F(C, *arg_train)
+                rmse_pc_train = pmodel.RMSE(V_pred_train, V_train)
+                
+                V_pred_test = F(C, *arg_test)
+                rmse_pc_test = pmodel.RMSE(V_pred_test, V_test)
+                print("RMSE pre-check = ", rmse_pc_train, rmse_pc_test)
+                print(C)
+                
+                C_params = pmodel.lmfit_params_wrap_ansatz3(C, M)
+            else:
+                #v2:
+                #generate init C_params:
+                a = np.random.uniform(-1, 1, M)
+                b = np.random.uniform(1e-3, 1, M) #b>0
+                c = np.random.uniform(-1, 1, M+4)
+                d = np.random.uniform(1e-3, 1, M+3) #d>0
+                R0 = np.random.uniform(-1, 1, 1)
+                C = np.hstack((a,b,c,d,R0)) #union into one C
+                C_params = pmodel.lmfit_params_wrap_ansatz3(C, M)
+                
+            #RMSE 2nd pre-check:
+            #print(C_params)
+            C = np.array([C_params[key] for key in C_params])
+            V_pred_train = F(C, *arg_train)
+            rmse_pc_train = pmodel.RMSE(V_pred_train, V_train)
+            
+            V_pred_test = F(C, *arg_test)
+            rmse_pc_test = pmodel.RMSE(V_pred_test, V_test)
+            print("RMSE 2nd pre-check = ", rmse_pc_train, rmse_pc_test)            
+            
+            '''
+            #v3: multirestart with definition of C_params outside
+            #for ansatz3:
+            rmse_train, C = pmodel.multiple_multistart(restarts, powers, delta, F, V_train, *arg_train, len_C=len_C, C=C_params, wrapper=pmodel.lmfit_params_wrap_ansatz3, mode="default")
+            '''
+            
+            
+            #v2:
+            out = minimize(pmodel.f_obj_diatomic_pot_res_lmfit, C_params, args=(F, V_train, *arg_train), method="bfgs")
+            C = np.array([out.params[key] for key in out.params]) #reconstruct c
+            #get the prediction from training data:
+            V_pred = F(C, *arg_train)
+            rmse_train = pmodel.RMSE(V_pred, V_train)
+            # end of v2
+            print("C after opt:")
+            print(C)
+            
+            print("rmse_train =",rmse_train)
+
+            #get test pred:
+            V_pred = F(C, *arg_test)
+            rmse_test = pmodel.RMSE(V_pred, V_test)
+            print("rmse_test =",rmse_test)
+            
+            #append to data:
+            data["num_params"].append(len_C); data["degree"].append(M)
+            data["ansatz_3_acc_train"].append(rmse_train); #train
+            data["ansatz_3_acc_test"].append(rmse_test); #test
+            data["ansatz_3_C"].append(C); 
             
             #store M for next iter:
             prev_M = M
@@ -815,5 +951,5 @@ if __name__ == "__main__":
     #cross_val_each_state_fit()
     #special_split_fit()
     #time_eval()
-    special_split_fit()
+    special_split_fit_ansatz3()
     #split_data_fit_performance()
