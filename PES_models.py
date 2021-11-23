@@ -537,23 +537,23 @@ def lmfit_params_wrap_ansatz3(C, itr):
         #a:
         for i in range(M-1):
             C_params.add(name="c"+str(i), value=C[i], vary=False, min=-np.inf, max=np.inf)
-        C_params.add(name="c"+str(M-1), value=C[M-1], min=-np.inf, max=np.inf) #free the last one
+        C_params.add(name="c"+str(M-1), value=C[M-1], vary=True, min=-np.inf, max=np.inf) #free the last one
         #b > 0:
         for i in range(M, 2*M-1):
             C_params.add(name="c"+str(i), value=C[i], vary=False, min=0, max=np.inf)
-        C_params.add(name="c"+str(2*M-1), value=C[2*M-1], min=0, max=np.inf) #free the last one
+        C_params.add(name="c"+str(2*M-1), value=C[2*M-1], vary=True, min=0, max=np.inf) #free the last one
         #c:
         for i in range(2*M, 3*M+2):
             C_params.add(name="c"+str(i), value=C[i], vary=False, min=-np.inf, max=np.inf)
-        C_params.add(name="c"+str(3*M+2), value=C[3*M+2], min=-np.inf, max=np.inf) #free the last one
+        C_params.add(name="c"+str(3*M+2), value=C[3*M+2], vary=True, min=-np.inf, max=np.inf) #free the last one
         #c_0:
-        C_params.add(name="c"+str(3*M+3), value=C[3*M+3], min=-np.inf, max=np.inf)
+        C_params.add(name="c"+str(3*M+3), value=C[3*M+3], vary=False, min=-np.inf, max=np.inf)
         #d > 0:
         for i in range(3*M+4, 4*M+6):
             C_params.add(name="c"+str(i), value=C[i], vary=False, min=0, max=np.inf)
-        C_params.add(name="c"+str(4*M+6), value=C[4*M+6], min=0, max=np.inf)
+        C_params.add(name="c"+str(4*M+6), value=C[4*M+6], vary=True, min=0, max=np.inf)
         #R0:
-        C_params.add(name="c"+str(4*M+7), value=C[4*M+7], min=-np.inf, max=np.inf) 
+        C_params.add(name="c"+str(4*M+7), value=C[4*M+7], vary=False, min=-np.inf, max=np.inf) 
     return C_params
 
 
