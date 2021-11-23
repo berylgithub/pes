@@ -265,6 +265,33 @@ def f_diatomic_ansatz_2(C, *args):
     
     return V
     
+
+def f_diatomic_ansatz_3(C, *args):
+    '''RATPOT3: with coulomb term, total of 4m+8 parameters'''
+    R = args[0]
+    Z = args[1]
+    M = args[2] #degree of pol
+    
+    #coefficients:
+    a = C[: M]
+    b = C[M : 2*M]
+    c = C[2*M : 3*M+4]
+    d = C[3*M+4 : 4*M+7]
+    R0 = C[-1] #or C[4M+7]
+    
+    P = Z*(1/R - 1/R0)
+    for i in range(M): #0,1,..M-1 (M length)
+        P *= (1 - R/a[i])**2 + R/b[i]
+    
+    Q = 1
+    for i in range(M+3): #0,1,..M+2 (M+3 length)
+        Q *= (1 - R/c[i])**2 + R/d[i]
+    
+    V = c[-1] + (P/Q)
+    
+    return V
+    
+    
 #######################################################
 ### CHIPR models: 
 ### for OH+:
@@ -461,8 +488,6 @@ def f_obj_diatomic_pot_res_lmfit(C_param, *args):
     return residuals.flatten()
 
 
-'''multistart'''
-# multiple-start for local optimizers:
 def lmfit_params_wrap(C, mode): #wrapper for lmfit parameters
     C_params = Parameters() #lmfit parameters
     if mode == "default":
@@ -493,6 +518,47 @@ def lmfit_params_wrap_ansatz2(C):
         C_params.add(name="c"+str(i), value=C[i], min=0, max=np.inf)
     
     return C_params
+
+def lmfit_params_wrap_ansatz3(C, itr):
+    '''custom, fixes parameters parameters <= m-1 if M (itr) >= 1'''
+    C_params = Parameters()
+    M = int((len(C)-8)/4)
+    if itr == 1:
+        for i in range(M): #a:
+            C_params.add(name="c"+str(i), value=C[i], min=-np.inf, max=np.inf)
+        for i in range(M, 2*M): #b > 0:
+            C_params.add(name="c"+str(i), value=C[i], min=0, max=np.inf)
+        for i in range(2*M, 3*M+4): #c:
+            C_params.add(name="c"+str(i), value=C[i], min=-np.inf, max=np.inf)
+        for i in range(3*M+4, 4*M+7): #d > 0:
+            C_params.add(name="c"+str(i), value=C[i], min=0, max=np.inf)
+        C_params.add(name="c"+str(4*M+7), value=C[4*M+7], min=-np.inf, max=np.inf) #R0
+    else:
+        #a:
+        for i in range(M-1):
+            C_params.add(name="c"+str(i), value=C[i], vary=False, min=-np.inf, max=np.inf)
+        C_params.add(name="c"+str(M-1), value=C[M-1], min=-np.inf, max=np.inf) #free the last one
+        #b > 0:
+        for i in range(M, 2*M-1):
+            C_params.add(name="c"+str(i), value=C[i], vary=False, min=0, max=np.inf)
+        C_params.add(name="c"+str(2*M-1), value=C[2*M-1], min=0, max=np.inf) #free the last one
+        #c:
+        for i in range(2*M, 3*M+2):
+            C_params.add(name="c"+str(i), value=C[i], vary=False, min=-np.inf, max=np.inf)
+        C_params.add(name="c"+str(3*M+2), value=C[3*M+2], min=-np.inf, max=np.inf) #free the last one
+        #c_0:
+        C_params.add(name="c"+str(3*M+3), value=C[3*M+3], min=-np.inf, max=np.inf)
+        #d > 0:
+        for i in range(3*M+4, 4*M+6):
+            C_params.add(name="c"+str(i), value=C[i], vary=False, min=0, max=np.inf)
+        C_params.add(name="c"+str(4*M+6), value=C[4*M+6], min=0, max=np.inf)
+        #R0:
+        C_params.add(name="c"+str(4*M+7), value=C[4*M+7], min=-np.inf, max=np.inf) 
+    return C_params
+
+
+
+'''multistart, multiple-start for local optimizers'''
 
 def multistart(n, delta, F, V, *F_args, len_C=100, C=None, wrapper=None, mode='default', verbose=False):
     #randomize by power x2 each loop and alternate sign:
