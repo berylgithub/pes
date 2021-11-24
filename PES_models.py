@@ -489,7 +489,7 @@ def f_obj_diatomic_pot_res_lmfit(C_param, *args):
 
 
 '''=======coeff vectors generator========='''
-def coeff_generator_ansatz3(mode="initialize", C=None, M=None, prev_M=None, random=True, pwr=1e-1, const=1e-4):
+def coeff_generator_ansatz3(mode="initialize", C=None, M=None, prev_M=None, random=True, pwr=1e-1, const=1e-3):
     # 3 modes: generate C from previous C (append), multiply subvector with some constants (power), generate completely new C (initialize)
     # C is previous coefficient
     # const is positive
@@ -568,7 +568,7 @@ def lmfit_params_wrap_ansatz2(C, itr=None):
 
 def lmfit_params_wrap_ansatz3(C, itr=None, mode="normal"):
     '''custom wrapper for ansatz3:
-    mode="freeze": fixes parameters parameters <= m-1 if M (itr) >= 1
+    mode="freeze": fixes parameters <= M-1 if M (itr) >= 1
     mode="normal": analogous to ansatz2, i.e., '''
     C_params = Parameters()
     M = int((len(C)-8)/4)

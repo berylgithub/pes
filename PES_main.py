@@ -156,7 +156,8 @@ if __name__ == "__main__":
             
             #v3: multirestart with definition of C_params outside
             #for ansatz2:
-            rmse_train, C = pmodel.multiple_multistart(restarts, powers, delta, F, V_train, *arg_train, len_C=len_C, C=C_params, wrapper=pmodel.lmfit_params_wrap_ansatz2, mode="default")
+            rmse_train, C = pmodel.multiple_multistart(restarts, powers, delta, F, V_train, *arg_train, len_C=len_C, C=C_params, 
+                                                       wrapper=pmodel.lmfit_params_wrap_ansatz2, wrapper_params=(None,), mode="default")
             
             
             '''
@@ -190,7 +191,7 @@ if __name__ == "__main__":
         data["simulation_time"] = elapsed
         print("elapsed time =",elapsed,"s")
         #print(data)
-        filename = "result/spec_split_data_fit_"+method+"_"+mol+"_"+datetime.datetime.now().strftime('%d%m%y_%H%M%S')+".pkl"
+        filename = "result/spec_split_data_fit_"+method+"_"+F_name+"_"+mol+"_"+datetime.datetime.now().strftime('%d%m%y_%H%M%S')+".pkl"
         with open(filename, 'wb') as handle:
             pickle.dump(data, handle)
     
@@ -238,24 +239,8 @@ if __name__ == "__main__":
             #v2: set params here and uses standard opt method:
             #Accuracy evaluation:
             print(">>> Accuracy evaluation:")
-            #special augmentation for M >= 2: a_m = b_m = c_m = d_m = 0
             if M >= 2:
-                #use previous C with augmentation:
-                const = 1e-3
-                a = C[: prev_M]; a = np.hstack((a, const))
-                b = C[prev_M : 2*prev_M]; b = np.hstack((b, const))
-                #c:                
-                c = C[2*prev_M : 3*prev_M+4]
-                ins_idx = len(c)-1
-                c = np.insert(c, ins_idx, const)
-                #d:
-                d = C[3*prev_M+4 : 4*prev_M+7]
-                ins_idx = len(d)
-                d = np.insert(d, ins_idx, const)
-                #R0:
-                R0 = C[-1]
-                #assemble C:
-                C = np.hstack((a,b,c,d,R0)) #union into one C
+                C = pmodel.coeff_generator_ansatz3(mode="append", C=C, prev_M=prev_M, random=False, const=1e-3)
                 
                 #RMSE pre-check:
                 V_pred_train = F(C, *arg_train)
@@ -264,20 +249,15 @@ if __name__ == "__main__":
                 V_pred_test = F(C, *arg_test)
                 rmse_pc_test = pmodel.RMSE(V_pred_test, V_test)
                 print("RMSE pre-check = ", rmse_pc_train, rmse_pc_test)
-                print(C)
+                #print(C)
                 
-                C_params = pmodel.lmfit_params_wrap_ansatz3(C, M)
             else:
                 #v2:
                 #generate init C_params:
-                a = np.random.uniform(-1, 1, M)
-                b = np.random.uniform(1e-3, 1, M) #b>0
-                c = np.random.uniform(-1, 1, M+4)
-                d = np.random.uniform(1e-3, 1, M+3) #d>0
-                R0 = np.random.uniform(-1, 1, 1)
-                C = np.hstack((a,b,c,d,R0)) #union into one C
-                C_params = pmodel.lmfit_params_wrap_ansatz3(C, M)
-                
+                C = pmodel.coeff_generator_ansatz3(mode="initialize", M=M)
+            
+            C_params = pmodel.lmfit_params_wrap_ansatz3(C, M, mode="normal")
+            
             #RMSE 2nd pre-check:
             #print(C_params)
             C = np.array([C_params[key] for key in C_params])
@@ -288,13 +268,17 @@ if __name__ == "__main__":
             rmse_pc_test = pmodel.RMSE(V_pred_test, V_test)
             print("RMSE 2nd pre-check = ", rmse_pc_train, rmse_pc_test)            
             
-            '''
+            
             #v3: multirestart with definition of C_params outside
             #for ansatz3:
-            rmse_train, C = pmodel.multiple_multistart(restarts, powers, delta, F, V_train, *arg_train, len_C=len_C, C=C_params, wrapper=pmodel.lmfit_params_wrap_ansatz3, mode="default")
+            wrapper_params = (M,"normal"); coeff_gen_params = ("initialize", None, M, None, None, None, None)
+            rmse_train, C = pmodel.multiple_multistart(restarts, powers, delta, F, V_train, *arg_train, len_C=len_C, C=C_params, 
+                                                       wrapper=pmodel.lmfit_params_wrap_ansatz3,  wrapper_params = wrapper_params,
+                                                       coeff_generator=pmodel.coeff_generator_ansatz3, coeff_gen_params=coeff_gen_params,
+                                                       mode="default")
+            
+            
             '''
-            
-            
             #v2:
             out = minimize(pmodel.f_obj_diatomic_pot_res_lmfit, C_params, args=(F, V_train, *arg_train), method="bfgs")
             C = np.array([out.params[key] for key in out.params]) #reconstruct c
@@ -302,8 +286,9 @@ if __name__ == "__main__":
             V_pred = F(C, *arg_train)
             rmse_train = pmodel.RMSE(V_pred, V_train)
             # end of v2
+            '''
             print("C after opt:")
-            print(C)
+            #print(C)
             
             print("rmse_train =",rmse_train)
 
@@ -325,10 +310,10 @@ if __name__ == "__main__":
         elapsed = end_time-init_time
         data["simulation_time"] = elapsed
         print("elapsed time =",elapsed,"s")
-        #print(data)
-        #filename = "result/spec_split_data_fit_"+method+"_"+mol+"_"+datetime.datetime.now().strftime('%d%m%y_%H%M%S')+".pkl"
-        #with open(filename, 'wb') as handle:
-        #    pickle.dump(data, handle)
+        print(data)
+        filename = "result/spec_split_data_fit_"+method+"_"+F_name+"_"+mol+"_"+datetime.datetime.now().strftime('%d%m%y_%H%M%S')+".pkl"
+        with open(filename, 'wb') as handle:
+            pickle.dump(data, handle)
     
     def performance_comparison():
         '''compares the performance of each method'''
