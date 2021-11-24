@@ -488,6 +488,53 @@ def f_obj_diatomic_pot_res_lmfit(C_param, *args):
     return residuals.flatten()
 
 
+'''=======coeff vectors generator========='''
+def coeff_generator_ansatz3(mode="initialize", C=None, M=None, prev_M=None, random=True, pwr=1e-1, const=1e-4):
+    # 3 modes: generate C from previous C (append), multiply subvector with some constants (power), generate completely new C (initialize)
+    # C is previous coefficient
+    # const is positive
+    # if C is None, then generate new vector by M, else if power is not none then it's v_J*const mode, otherwise, generate new C from prev C using prev_M
+    # random  True if C is not none means the new constants will be randomized, otherwise const will be used
+    if mode == "append":
+        #a:
+        if random:
+            const = np.random.uniform(-1, 1, 1)
+        a = C[: prev_M]; a = np.hstack((a, const))
+        #b > 0:
+        if random:
+            const = np.random.uniform(const, 1, 1)
+        b = C[prev_M : 2*prev_M]; b = np.hstack((b, const))
+        #c:
+        if random:
+            const = np.random.uniform(-1, 1, 1)
+        c = C[2*prev_M : 3*prev_M+4]
+        ins_idx = len(c)-1
+        c = np.insert(c, ins_idx, const)
+        #d > 0:
+        if random:
+            const = np.random.uniform(const, 1, 1)
+        d = C[3*prev_M+4 : 4*prev_M+7]
+        ins_idx = len(d)
+        d = np.insert(d, ins_idx, const)
+        #R0:
+        R0 = C[-1]
+    elif mode == "power":
+        # only multiply the variable constants:
+        idxes = [M-1, 2*M-1, 3*M+2, 4*M+6]
+        C[idxes] *= pwr
+    elif mode == "initialize":
+        #generate init C_params:
+        a = np.random.uniform(-1, 1, M)
+        b = np.random.uniform(1e-3, 1, M) #b>0
+        c = np.random.uniform(-1, 1, M+4)
+        d = np.random.uniform(1e-3, 1, M+3) #d>0
+        R0 = np.random.uniform(-1, 1, 1)
+    C = np.hstack((a,b,c,d,R0)) #union into one C
+    return C
+
+
+'''===========lmfit wrappers============'''
+
 def lmfit_params_wrap(C, mode): #wrapper for lmfit parameters
     C_params = Parameters() #lmfit parameters
     if mode == "default":
@@ -502,7 +549,7 @@ def lmfit_params_wrap(C, mode): #wrapper for lmfit parameters
             C_params.add(name="c"+str(i), value=val, min=-np.inf, max=np.inf)
     return C_params
 
-def lmfit_params_wrap_ansatz2(C):
+def lmfit_params_wrap_ansatz2(C, itr=None):
     C_params = Parameters()
     M = int((len(C)-7)/4)
     for i in range(M): #a:
@@ -519,11 +566,45 @@ def lmfit_params_wrap_ansatz2(C):
     
     return C_params
 
-def lmfit_params_wrap_ansatz3(C, itr):
-    '''custom, fixes parameters parameters <= m-1 if M (itr) >= 1'''
+def lmfit_params_wrap_ansatz3(C, itr=None, mode="normal"):
+    '''custom wrapper for ansatz3:
+    mode="freeze": fixes parameters parameters <= m-1 if M (itr) >= 1
+    mode="normal": analogous to ansatz2, i.e., '''
     C_params = Parameters()
     M = int((len(C)-8)/4)
-    if itr == 1:
+    if mode=="freeze":
+        if itr == 1:
+            for i in range(M): #a:
+                C_params.add(name="c"+str(i), value=C[i], min=-np.inf, max=np.inf)
+            for i in range(M, 2*M): #b > 0:
+                C_params.add(name="c"+str(i), value=C[i], min=0, max=np.inf)
+            for i in range(2*M, 3*M+4): #c:
+                C_params.add(name="c"+str(i), value=C[i], min=-np.inf, max=np.inf)
+            for i in range(3*M+4, 4*M+7): #d > 0:
+                C_params.add(name="c"+str(i), value=C[i], min=0, max=np.inf)
+            C_params.add(name="c"+str(4*M+7), value=C[4*M+7], min=-np.inf, max=np.inf) #R0
+        else:
+            #a:
+            for i in range(M-1):
+                C_params.add(name="c"+str(i), value=C[i], vary=False, min=-np.inf, max=np.inf)
+            C_params.add(name="c"+str(M-1), value=C[M-1], vary=True, min=-np.inf, max=np.inf) #free the last one
+            #b > 0:
+            for i in range(M, 2*M-1):
+                C_params.add(name="c"+str(i), value=C[i], vary=False, min=0, max=np.inf)
+            C_params.add(name="c"+str(2*M-1), value=C[2*M-1], vary=True, min=0, max=np.inf) #free the last one
+            #c:
+            for i in range(2*M, 3*M+2):
+                C_params.add(name="c"+str(i), value=C[i], vary=False, min=-np.inf, max=np.inf)
+            C_params.add(name="c"+str(3*M+2), value=C[3*M+2], vary=True, min=-np.inf, max=np.inf) #free the last one
+            #c_0:
+            C_params.add(name="c"+str(3*M+3), value=C[3*M+3], vary=False, min=-np.inf, max=np.inf)
+            #d > 0:
+            for i in range(3*M+4, 4*M+6):
+                C_params.add(name="c"+str(i), value=C[i], vary=False, min=0, max=np.inf)
+            C_params.add(name="c"+str(4*M+6), value=C[4*M+6], vary=True, min=0, max=np.inf)
+            #R0:
+            C_params.add(name="c"+str(4*M+7), value=C[4*M+7], vary=False, min=-np.inf, max=np.inf)
+    elif mode == "normal":
         for i in range(M): #a:
             C_params.add(name="c"+str(i), value=C[i], min=-np.inf, max=np.inf)
         for i in range(M, 2*M): #b > 0:
@@ -533,34 +614,16 @@ def lmfit_params_wrap_ansatz3(C, itr):
         for i in range(3*M+4, 4*M+7): #d > 0:
             C_params.add(name="c"+str(i), value=C[i], min=0, max=np.inf)
         C_params.add(name="c"+str(4*M+7), value=C[4*M+7], min=-np.inf, max=np.inf) #R0
-    else:
-        #a:
-        for i in range(M-1):
-            C_params.add(name="c"+str(i), value=C[i], vary=False, min=-np.inf, max=np.inf)
-        C_params.add(name="c"+str(M-1), value=C[M-1], vary=True, min=-np.inf, max=np.inf) #free the last one
-        #b > 0:
-        for i in range(M, 2*M-1):
-            C_params.add(name="c"+str(i), value=C[i], vary=False, min=0, max=np.inf)
-        C_params.add(name="c"+str(2*M-1), value=C[2*M-1], vary=True, min=0, max=np.inf) #free the last one
-        #c:
-        for i in range(2*M, 3*M+2):
-            C_params.add(name="c"+str(i), value=C[i], vary=False, min=-np.inf, max=np.inf)
-        C_params.add(name="c"+str(3*M+2), value=C[3*M+2], vary=True, min=-np.inf, max=np.inf) #free the last one
-        #c_0:
-        C_params.add(name="c"+str(3*M+3), value=C[3*M+3], vary=False, min=-np.inf, max=np.inf)
-        #d > 0:
-        for i in range(3*M+4, 4*M+6):
-            C_params.add(name="c"+str(i), value=C[i], vary=False, min=0, max=np.inf)
-        C_params.add(name="c"+str(4*M+6), value=C[4*M+6], vary=True, min=0, max=np.inf)
-        #R0:
-        C_params.add(name="c"+str(4*M+7), value=C[4*M+7], vary=False, min=-np.inf, max=np.inf) 
     return C_params
 
 
 
-'''multistart, multiple-start for local optimizers'''
+'''===========multistart, multiple-start for local optimizers================'''
 
-def multistart(n, delta, F, V, *F_args, len_C=100, C=None, wrapper=None, mode='default', verbose=False):
+def multistart(n, delta, F, V, *F_args, len_C=100, C=None, 
+               wrapper=None, wrapper_params=None, 
+               coeff_generator=None, coeff_gen_params=None, 
+               mode='default', verbose=False):
     #randomize by power x2 each loop and alternate sign:
     #n =  max loop
     #delta = minimum RMSE
@@ -575,9 +638,15 @@ def multistart(n, delta, F, V, *F_args, len_C=100, C=None, wrapper=None, mode='d
         if (C is not None) and (k==0):
             C_params = C
         else:
-            C0 = np.random.uniform(-1, 1, len_C)*pwr
+            #coeff generator:
+            if coeff_generator is not None:
+                C0 = coeff_generator(*coeff_gen_params)
+            else:
+                C0 = np.random.uniform(-1, 1, len_C)*pwr
+                
+            #wrapper:
             if wrapper: #custom wrapper
-                C_params = wrapper(C0)
+                C_params = wrapper(C0, *wrapper_params)
             else:
                 C_params = lmfit_params_wrap(C0, mode)
         while True: #NaN exception handler:
@@ -589,12 +658,19 @@ def multistart(n, delta, F, V, *F_args, len_C=100, C=None, wrapper=None, mode='d
                 #reset C until no error:
                 if verbose:
                     print("ValueError!!, resetting C")
-                C0 = np.random.uniform(-1, 1, len_C)*pwr
                 
+                #coeff generator:
+                if coeff_generator is not None:
+                    C0 = coeff_generator(*coeff_gen_params)*pwr
+                else:
+                    C0 = np.random.uniform(-1, 1, len_C)*pwr
+                
+                #wrapper:
                 if wrapper:
-                    C_params = wrapper(C0)
+                    C_params = wrapper(C0, *wrapper_params)
                 else:
                     C_params = lmfit_params_wrap(C0, mode)
+                    
                 continue
         #transform out.params to C array:
         C = np.array([out.params[key] for key in out.params])
@@ -617,11 +693,16 @@ def multistart(n, delta, F, V, *F_args, len_C=100, C=None, wrapper=None, mode='d
             pwr *= -1 #alternate sign
     return min_rmse, min_C
 
-def multiple_multistart(k, n, delta, F, V, *F_args, len_C=30, C=None, wrapper=None, mode="default", verbose=False):
+def multiple_multistart(k, n, delta, F, V, *F_args, len_C=30, C=None, 
+                        wrapper=None, wrapper_params=None, 
+                        coeff_generator=None, coeff_gen_params=None, 
+                        mode="default", verbose=False):
     #k = number of restarts
     min_rmse = np.inf; min_C = None
     for i in range(k):
-        res = multistart(n, delta, F, V, *F_args, len_C=len_C, C=C, wrapper=wrapper, mode=mode)
+        res = multistart(n, delta, F, V, *F_args, len_C=len_C, C=C, 
+                         wrapper=wrapper, wrapper_params=wrapper_params, 
+                         coeff_generator=coeff_generator, coeff_gen_params=coeff_gen_params, mode=mode)
         print(i,"th round is done")
         rmse = res[0]; C_array = res[1];
         if rmse < min_rmse:
@@ -633,7 +714,7 @@ def multiple_multistart(k, n, delta, F, V, *F_args, len_C=30, C=None, wrapper=No
     return min_rmse, min_C
 
 
-'''performance evaluation'''
+'''=========performance evaluation================'''
 def evaluate_efficiency(Fs, N, args, len_C):
     # function to evaluate the efficiency of a list of functions Fs by computing it N-numbers of time
     # args = list of arguments for each function
@@ -656,3 +737,11 @@ def evaluate_efficiency_single(F, N, len_C, *arg):
         F(C, *arg)
     diff = time.time()-start
     return diff
+
+
+if __name__ == "__main__":
+    
+    def test(a,b,c,d):
+        print(a,b,c,d)
+    params = (3,2,3,4)
+    test(1,2,4,3,*params)
