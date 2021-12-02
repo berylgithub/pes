@@ -211,7 +211,8 @@ if __name__ == "__main__":
         test_size = 0.25
         R_train, R_test, V_train, V_test = train_test_split(R, V, test_size=test_size, random_state=0) #split data
 
-        F = pmodel.f_diatomic_ansatz_3
+        #F = pmodel.f_diatomic_ansatz_3
+        F = pmodel.f_diatomic_ansatz_3_unconstrained # unconstrained version
         F_name = "ansatz_3"
         
         restarts = int(10); powers = int(3); # number of optimization restarts and powers for random number generations
@@ -240,7 +241,8 @@ if __name__ == "__main__":
             #Accuracy evaluation:
             print(">>> Accuracy evaluation:")
             if M >= 2:
-                C = pmodel.coeff_generator_ansatz3(mode="append", C=C, prev_M=prev_M, random=False, const=1e-3)
+                #C = pmodel.coeff_generator_ansatz3(mode="append", C=C, prev_M=prev_M, random=False, const=1e-12)
+                C = pmodel.coeff_generator_ansatz3_unconstrained(mode="append", C=C, prev_M=prev_M, random=True, const=1e-12) # unconstrained
                 
                 #RMSE pre-check:
                 V_pred_train = F(C, *arg_train)
@@ -254,9 +256,11 @@ if __name__ == "__main__":
             else:
                 #v2:
                 #generate init C_params:
-                C = pmodel.coeff_generator_ansatz3(mode="initialize", M=M)
+                #C = pmodel.coeff_generator_ansatz3(mode="initialize", M=M)
+                C = pmodel.coeff_generator_ansatz3_unconstrained(mode="initialize", M=M) # unconstrained
             
-            C_params = pmodel.lmfit_params_wrap_ansatz3(C, M, mode="normal")
+            #C_params = pmodel.lmfit_params_wrap_ansatz3(C, M, mode="normal")
+            C_params = pmodel.lmfit_params_wrap_ansatz3_unconstrained(C, M, mode="normal") # unconstrained
             
             #RMSE 2nd pre-check:
             #print(C_params)
@@ -288,7 +292,7 @@ if __name__ == "__main__":
             # end of v2
             '''
             print("C after opt:")
-            #print(C)
+            print(C)
             
             print("rmse_train =",rmse_train)
 
