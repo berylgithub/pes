@@ -873,24 +873,27 @@ if __name__ == "__main__":
         
         #model training:
         #Fs = [pmodel.f_diatomic_vdw, pmodel.f_diatomic_chipr_ohplus]
-        Fs = [pmodel.f_diatomic_ansatz_0, pmodel.f_diatomic_chipr_ohplus]
-        F_names = ["ansatz", "CHIPR"]
-        M = 7; m = 4;
-        par = 3*M+1
-        len_Cs = [par, par] #number of free parameters
-        Z = 8 #change Z for each molecule!!
+        Fs = [pmodel.f_diatomic_ansatz_0, pmodel.f_diatomic_ansatz_2_unconstrained, pmodel.f_diatomic_chipr_ohplus]
+        F_names = ["ansatz_1", "ansatz_2", "CHIPR"]
+        Ms = [13, 6, 10]
+        #M = 7; m = 6;
+        m = 6
+        len_Cs = [3*Ms[0]+1, 4*Ms[1]+7, 3*(m + 1) + Ms[2]] #number of free parameters
         restarts = 10; powers = 3; delta = 1e-5
         
+        # data dict for file-saving
         data = {}
-        data["num_params"] = [] #only for variable free params, less relevant for fixed params e.g. f-dn or f-ds
+        data["fold"] = []
+        data["num_params"] = len_Cs; data["degree"] = Ms
         data["opt_restart"] = restarts; data["opt_power"] = powers; data["opt_delta"] = delta
         data["mol"] = []; data["state"] = []; data["author"] = []; data["method"] = []; data["Z"] = [] #dataset descriptor
-        data["ansatz_acc"] = []; data["ansatz_C"] = []
+        data["ansatz_1_acc"] = []; data["ansatz_1_C"] = []
+        data["ansatz_2_acc"] = []; data["ansatz_2_C"] = []
         data["chipr_acc"] = []; data["chipr_C"] = []
-        #data["dn_acc"] = []; data["dn_C"] = []
-        #data["ds_acc"] = []; data["ds_C"] = []
+        
         with warnings.catch_warnings(record=True): #CHIPR NaN problem
             for dset in rel_datasets:
+                fold = 0
                 print("dataset = ", dset["mol"], dset["state"], dset["author"])
                 data["mol"].append(dset["mol"]); data["state"].append(dset["state"]); data["author"].append(dset["author"]);
                 if "method" in dset:
@@ -899,16 +902,16 @@ if __name__ == "__main__":
                     data["method"].append(None)
                 Z = Zs[dset["mol"]]; data["Z"].append(Z) #assign Z
                 V = dset["V"]; R = dset["R"]
-                min_test_rmses = [np.inf, np.inf]; min_Cs = [None, None]
-                fold = 0
+                min_test_rmses = [np.inf, np.inf]; min_Cs = [None, None] #only for taking the best ones
                 for train_index, test_index in kf.split(R): #k-cross-val
+                    data["fold"].append(fold)
                     print(">>> fold = ",fold)
                     fold+=1
                     R_train, R_test = R[train_index], R[test_index]
                     V_train, V_test = V[train_index], V[test_index]
                     
-                    args_train = [(R_train,Z,M), (R_train,Z,M,m)] 
-                    args_test = [(R_test,Z,M), (R_test,Z,M,m)]
+                    args_train = [(R_train,Z,Ms[0]), (R_train,Ms[1]), (R_train,Z,Ms[2],m)]
+                    args_test = [(R_test,Z,Ms[0]), (R_test,Ms[1]), (R_test,Z,Ms[2],m)]
                     rmses_test = []; Cs = []
                     for i, f in enumerate(Fs):
                         len_C = len_Cs[i]
@@ -918,27 +921,34 @@ if __name__ == "__main__":
 
                         rmses_test.append(rmse_test); Cs.append(C)
                         print(F_names[i], "rmse = ",rmse_test)
-                        data["num_params"].append(len_C)
+                        #data["num_params"].append(len_C)
                     
-                    #get min test rmse:
-                    for i in range(len(min_test_rmses)): #ignore train rmse
-                        if rmses_test[i] < min_test_rmses[i]:
-                            min_test_rmses[i] = rmses_test[i]
-                            min_Cs[i] = Cs[i]
-                    
-                data["ansatz_acc"].append(min_test_rmses[0]); data["chipr_acc"].append(min_test_rmses[1]);
-                data["ansatz_C"].append(min_Cs[0]); data["chipr_C"].append(min_Cs[1]);
-                    
-                print("picked rmses = ",min_test_rmses)
+                    # get min test rmse:
+#                    for i in range(len(min_test_rmses)): #ignore train rmse
+#                        if rmses_test[i] < min_test_rmses[i]:
+#                            min_test_rmses[i] = rmses_test[i]
+#                            min_Cs[i] = Cs[i]
                 
-        print(data)
-        filename = "result/cross_val_each_state_"+datetime.datetime.now().strftime('%d%m%y_%H%M%S')+".pkl"
-        with open(filename, 'wb') as handle:
-            pickle.dump(data, handle)
+                 # for taking only the min_RMSE:
+#                data["ansatz_acc"].append(min_test_rmses[0]); data["chipr_acc"].append(min_test_rmses[1]);
+#                data["ansatz_C"].append(min_Cs[0]); data["chipr_C"].append(min_Cs[1]);
+#                    
+#                print("picked rmses = ",min_test_rmses)
+                    data["ansatz_1_acc"].append(rmses_test[0]); data["ansatz_1_C"].append(Cs[0])
+                    data["ansatz_2_acc"].append(rmses_test[1]); data["ansatz_2_C"].append(Cs[1])
+                    data["chipr_acc"].append(rmses_test[2]); data["chipr_C"].append(Cs[2])
+                
+#            print(data)
+            exclusion = ["ansatz_1_C", "ansatz_2_C", "chipr_C"]
+            print({key: data[key] for key in data if key not in exclusion})
+            # save data per fold
+            filename = "result/cross_val_each_state_"+datetime.datetime.now().strftime('%d%m%y_%H%M%S')+".pkl"
+            with open(filename, 'wb') as handle:
+                pickle.dump(data, handle)
         
     '''end of main functions, actual main starts below'''
-    #cross_val_each_state_fit()
+    cross_val_each_state_fit()
     #special_split_fit()
     #time_eval()
-    special_split_fit_ansatz3()
+    #special_split_fit_ansatz3()
     #split_data_fit_performance()
