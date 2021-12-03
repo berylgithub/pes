@@ -264,7 +264,44 @@ def f_diatomic_ansatz_2(C, *args):
     V = c[-1] + (P/Q)
     
     return V
+
+def f_diatomic_ansatz_2_unconstrained(C, *args):
+    '''unconstrained version of ratpot2'''
+    R = args[0]
+    M = args[1] #degree of pol
     
+    #coefficients:
+    a = C[: M]
+    b = C[M : 2*M]
+    c = C[2*M : 3*M+4]
+    d = C[3*M+4 : 4*M+7]
+    
+    #b_i \ge 0 for i > 1:
+    for i in range(1, M):
+        if b[i] < 0:
+            b[i] = -b[i]
+    
+    #d_i \ge 0 for i > 0:
+    for i in range(M):
+        if d[i] < 0:
+            d[i] = -d[i]
+    
+    #evaluates P:
+    #the last indexed coefficients are outside of the loop, so less index operations
+    P = c[-2]
+    for i in range(M): #i=0,1...m-1
+        P *= (R - a[i])**2 + b[i]*R
+           
+    #evaluates Q:
+    Q = (R + d[-1])*R
+    for i in range(M+2): #i=0,1,..m+1
+        Q *= (R - c[i])**2 + d[i]*R
+    
+    #the rational potential:
+    V = c[-1] + (P/Q)
+    
+    return V
+
 
 def f_diatomic_ansatz_3(C, *args):
     '''RATPOT3: with coulomb term, total of 4m+8 parameters'''
@@ -407,7 +444,7 @@ def f_lj_pot(C, *args):
     R2 = R*R; R4 = R2*R2; R6 = R4*R2; R12 = R6*R6
     return (C[0]/R12) - (C[1]/R6)
 
-'''Objective functions'''
+'''============= Objective functions =================='''
 
 def f_poly_obj(R, V, coeffs, F, poly_par): #least squares for all polynomials 
     #R = vector of distances
@@ -571,24 +608,25 @@ def coeff_generator_ansatz3_unconstrained(mode="initialize", C=None, M=None, pre
     # const is positive
     # if C is None, then generate new vector by M, else if power is not none then it's v_J*const mode, otherwise, generate new C from prev C using prev_M
     # random  True if C is not none means the new constants will be randomized, otherwise const will be used
-    if mode == "append":
+    rand_lb = 0; rand_ub = 1e-6
+    if mode == "append":    
         #a:
         if random:
-            const = np.random.uniform(-1, 1, 1)
+            const = np.random.uniform(rand_lb, rand_ub, 1)
         a = C[: prev_M]; a = np.hstack((a, const))
         #b:
         if random:
-            const = np.random.uniform(-1, 1, 1)
+            const = np.random.uniform(rand_lb, rand_ub, 1)
         b = C[prev_M : 2*prev_M]; b = np.hstack((b, const))
         #c:
         if random:
-            const = np.random.uniform(-1, 1, 1)
+            const = np.random.uniform(rand_lb, rand_ub, 1)
         c = C[2*prev_M : 3*prev_M+4]
         ins_idx = len(c)-1
         c = np.insert(c, ins_idx, const)
         #d:
         if random:
-            const = np.random.uniform(-1, 1, 1)
+            const = np.random.uniform(rand_lb, rand_ub, 1)
         d = C[3*prev_M+4 : 4*prev_M+7]
         ins_idx = len(d)
         d = np.insert(d, ins_idx, const)
@@ -600,11 +638,11 @@ def coeff_generator_ansatz3_unconstrained(mode="initialize", C=None, M=None, pre
         C[idxes] *= pwr
     elif mode == "initialize":
         #generate init C_params:
-        a = np.random.uniform(-1, 1, M)
-        b = np.random.uniform(-1, 1, M) 
-        c = np.random.uniform(-1, 1, M+4)
-        d = np.random.uniform(-1, 1, M+3)
-        R0 = np.random.uniform(-1, 1, 1)
+        a = np.random.uniform(rand_lb, rand_ub, M)
+        b = np.random.uniform(rand_lb, rand_ub, M) 
+        c = np.random.uniform(rand_lb, rand_ub, M+4)
+        d = np.random.uniform(rand_lb, rand_ub, M+3)
+        R0 = np.random.uniform(rand_lb, rand_ub, 1)
     C = np.hstack((a,b,c,d,R0)) #union into one C
     return C
 
@@ -768,7 +806,7 @@ def multistart(n, delta, F, V, *F_args, len_C=100, C=None,
         #get the predicted V
         V_pred = F(C, *F_args)
         rmse = RMSE(V_pred, V)
-        print(k, rmse)
+        #print(k, rmse)
         #get the minimum rmse:
         if rmse < min_rmse:
             min_rmse = rmse
