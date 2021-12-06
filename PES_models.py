@@ -558,13 +558,15 @@ def f_obj_diatomic_pot_res_lmfit(C_param, *args):
     return residuals.flatten()
 
 
-'''=======coeff vectors generator========='''
+'''======= coeff vectors generator ========='''
+
 def coeff_generator_ansatz3(mode="initialize", C=None, M=None, prev_M=None, random=True, pwr=1e-1, const=1e-3):
     # 3 modes: generate C from previous C (append), multiply subvector with some constants (power), generate completely new C (initialize)
     # C is previous coefficient
     # const is positive
     # if C is None, then generate new vector by M, else if power is not none then it's v_J*const mode, otherwise, generate new C from prev C using prev_M
     # random  True if C is not none means the new constants will be randomized, otherwise const will be used
+    
     if mode == "append":
         #a:
         if random:
@@ -602,13 +604,20 @@ def coeff_generator_ansatz3(mode="initialize", C=None, M=None, prev_M=None, rand
     C = np.hstack((a,b,c,d,R0)) #union into one C
     return C
 
-def coeff_generator_ansatz3_unconstrained(mode="initialize", C=None, M=None, prev_M=None, random=True, pwr=1e-1, const=1e-3):
+def coeff_generator_ansatz3_unconstrained(mode="initialize", C=None, M=None, prev_M=None, random=True, pwr=1e-1, const=1e-3, rand_lb=None, rand_ub=None):
+    # accepts arbitrary lb and ub for randomization
     # 3 modes: generate C from previous C (append), multiply subvector with some constants (power), generate completely new C (initialize)
     # C is previous coefficient
     # const is positive
     # if C is None, then generate new vector by M, else if power is not none then it's v_J*const mode, otherwise, generate new C from prev C using prev_M
     # random  True if C is not none means the new constants will be randomized, otherwise const will be used
-    rand_lb = 0; rand_ub = 1e-6
+    
+    # default lb and ub params:
+    if rand_lb == None:
+        rand_lb = 0
+    if rand_ub == None:
+        rand_ub = 1e-6
+        
     if mode == "append":    
         #a:
         if random:
@@ -731,18 +740,51 @@ def lmfit_params_wrap_ansatz3(C, itr=None, mode="normal"):
     return C_params
 
 def lmfit_params_wrap_ansatz3_unconstrained(C, itr=None, mode="normal"):
-    '''this is for unconstrained version, only has normal wrapper'''
+    '''this is for unconstrained version'''
     C_params = Parameters()
     M = int((len(C)-8)/4)
-    for i in range(M): #a:
-        C_params.add(name="c"+str(i), value=C[i], min=-np.inf, max=np.inf)
-    for i in range(M, 2*M): #b > 0:
-        C_params.add(name="c"+str(i), value=C[i], min=-np.inf, max=np.inf)
-    for i in range(2*M, 3*M+4): #c:
-        C_params.add(name="c"+str(i), value=C[i], min=-np.inf, max=np.inf)
-    for i in range(3*M+4, 4*M+7): #d > 0:
-        C_params.add(name="c"+str(i), value=C[i], min=-np.inf, max=np.inf)
-    C_params.add(name="c"+str(4*M+7), value=C[4*M+7], min=-np.inf, max=np.inf) #R0
+    if mode=="freeze":
+        if itr == 1: #custom condition, normally it shouldn't be here, for conveniences
+            for i in range(M): #a:
+                C_params.add(name="c"+str(i), value=C[i], min=-np.inf, max=np.inf)
+            for i in range(M, 2*M): #b:
+                C_params.add(name="c"+str(i), value=C[i], min=-np.inf, max=np.inf)
+            for i in range(2*M, 3*M+4): #c:
+                C_params.add(name="c"+str(i), value=C[i], min=-np.inf, max=np.inf)
+            for i in range(3*M+4, 4*M+7): #d:
+                C_params.add(name="c"+str(i), value=C[i], min=-np.inf, max=np.inf)
+            C_params.add(name="c"+str(4*M+7), value=C[4*M+7], min=-np.inf, max=np.inf) #R0
+        else:
+            #a:
+            for i in range(M-1):
+                C_params.add(name="c"+str(i), value=C[i], vary=False, min=-np.inf, max=np.inf)
+            C_params.add(name="c"+str(M-1), value=C[M-1], vary=True, min=-np.inf, max=np.inf) #free the last one
+            #b > 0:
+            for i in range(M, 2*M-1):
+                C_params.add(name="c"+str(i), value=C[i], vary=False, min=-np.inf, max=np.inf)
+            C_params.add(name="c"+str(2*M-1), value=C[2*M-1], vary=True, min=-np.inf, max=np.inf) #free the last one
+            #c:
+            for i in range(2*M, 3*M+2):
+                C_params.add(name="c"+str(i), value=C[i], vary=False, min=-np.inf, max=np.inf)
+            C_params.add(name="c"+str(3*M+2), value=C[3*M+2], vary=True, min=-np.inf, max=np.inf) #free the last one
+            #c_0:
+            C_params.add(name="c"+str(3*M+3), value=C[3*M+3], vary=False, min=-np.inf, max=np.inf)
+            #d > 0:
+            for i in range(3*M+4, 4*M+6):
+                C_params.add(name="c"+str(i), value=C[i], vary=False, min=-np.inf, max=np.inf)
+            C_params.add(name="c"+str(4*M+6), value=C[4*M+6], vary=True, min=-np.inf, max=np.inf)
+            #R0:
+            C_params.add(name="c"+str(4*M+7), value=C[4*M+7], vary=False, min=-np.inf, max=np.inf)
+    elif mode == "normal":
+        for i in range(M): #a:
+            C_params.add(name="c"+str(i), value=C[i], min=-np.inf, max=np.inf)
+        for i in range(M, 2*M): #b > 0:
+            C_params.add(name="c"+str(i), value=C[i], min=-np.inf, max=np.inf)
+        for i in range(2*M, 3*M+4): #c:
+            C_params.add(name="c"+str(i), value=C[i], min=-np.inf, max=np.inf)
+        for i in range(3*M+4, 4*M+7): #d > 0:
+            C_params.add(name="c"+str(i), value=C[i], min=-np.inf, max=np.inf)
+        C_params.add(name="c"+str(4*M+7), value=C[4*M+7], min=-np.inf, max=np.inf) #R0
     return C_params
     
 
