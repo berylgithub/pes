@@ -831,7 +831,7 @@ def multiple_multistart(k, n, delta, F, V, *F_args, len_C=30, C=None,
         res = multistart(n, delta, F, V, *F_args, len_C=len_C, C=C, 
                          wrapper=wrapper, wrapper_params=wrapper_params, 
                          coeff_generator=coeff_generator, coeff_gen_params=coeff_gen_params, mode=mode)
-        print(i,"th round is done")
+        #print(i,"th round is done")
         rmse = res[0]; C_array = res[1];
         if rmse < min_rmse:
             min_rmse = rmse

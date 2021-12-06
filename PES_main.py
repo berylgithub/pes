@@ -859,7 +859,7 @@ if __name__ == "__main__":
         list_data = np.load('data/hxoy_data.npy', allow_pickle=True)
         list_data = list_data[()]
         
-        num_fold = 4
+        num_fold = 5
         kf = KFold(n_splits=num_fold, random_state=0, shuffle=True) #num of testing data = 1/split*len(data)
         
         #getdata:
@@ -942,13 +942,13 @@ if __name__ == "__main__":
             exclusion = ["ansatz_1_C", "ansatz_2_C", "chipr_C"]
             print({key: data[key] for key in data if key not in exclusion})
             # save data per fold
-            filename = "result/cross_val_each_state_"+datetime.datetime.now().strftime('%d%m%y_%H%M%S')+".pkl"
+            filename = "result/cross_val_each_state_"+str(num_fold)+"fold_"+datetime.datetime.now().strftime('%d%m%y_%H%M%S')+".pkl"
             with open(filename, 'wb') as handle:
                 pickle.dump(data, handle)
         
     '''end of main functions, actual main starts below'''
-    cross_val_each_state_fit()
+    #cross_val_each_state_fit()
     #special_split_fit()
     #time_eval()
-    #special_split_fit_ansatz3()
+    special_split_fit_ansatz3()
     #split_data_fit_performance()
