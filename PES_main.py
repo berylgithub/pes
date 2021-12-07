@@ -949,8 +949,8 @@ if __name__ == "__main__":
                 pickle.dump(data, handle)
         
     '''end of main functions, actual main starts below'''
-    #cross_val_each_state_fit()
+    cross_val_each_state_fit()
     #special_split_fit()
     #time_eval()
-    special_split_fit_ansatz3()
+    #special_split_fit_ansatz3()
     #split_data_fit_performance()
