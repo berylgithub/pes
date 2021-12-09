@@ -230,6 +230,7 @@ if __name__ == "__main__":
         max_M = 20
         init_time = time.time() #timer
         C = None; prev_M = None #placeholder
+        rand_lb = 1e-7; rand_ub = 10 # the random uniform initialization
         for M in range(1, max_M+1): #include the last one in this case            
             print(">>>>> M =",M)
             arg_train = (R_train,Z,M)
@@ -242,7 +243,7 @@ if __name__ == "__main__":
             print(">>> Accuracy evaluation:")
             if M >= 2:
                 #C = pmodel.coeff_generator_ansatz3(mode="append", C=C, prev_M=prev_M, random=False, const=1e-12) # constrained
-                C = pmodel.coeff_generator_ansatz3_unconstrained(mode="append", C=C, prev_M=prev_M, random=True, rand_lb=-1, rand_ub=1) # unconstrained
+                C = pmodel.coeff_generator_ansatz3_unconstrained(mode="append", C=C, prev_M=prev_M, random=True, rand_lb=rand_lb, rand_ub=rand_ub) # unconstrained
                 
                 #RMSE pre-check:
                 V_pred_train = F(C, *arg_train)
@@ -257,14 +258,14 @@ if __name__ == "__main__":
                 #v2:
                 #generate init C_params:
                 #C = pmodel.coeff_generator_ansatz3(mode="initialize", M=M)
-                C = pmodel.coeff_generator_ansatz3_unconstrained(mode="initialize", M=M) # unconstrained
+                C = pmodel.coeff_generator_ansatz3_unconstrained(mode="initialize", M=M, random=True, rand_lb=rand_lb, rand_ub=rand_ub) # unconstrained
             
             #C_params = pmodel.lmfit_params_wrap_ansatz3(C, M, mode="normal") # constrained
             #C_params = pmodel.lmfit_params_wrap_ansatz3_unconstrained(C, M, mode="normal") # unconstrained
             C_params = pmodel.lmfit_params_wrap_ansatz3_unconstrained(C, M, mode="freeze") # unconstrained with freeze ability
             
             #RMSE 2nd pre-check:
-            #print(C_params)
+            print(C_params)
             C = np.array([C_params[key] for key in C_params])
             V_pred_train = F(C, *arg_train)
             rmse_pc_train = pmodel.RMSE(V_pred_train, V_train)
@@ -276,11 +277,11 @@ if __name__ == "__main__":
             
             #v3: multirestart with definition of C_params outside
             #for ansatz3:
-            wrapper_params = (M,"freeze"); coeff_gen_params = ("initialize", None, M, None, True, None, None, -1, 1)
+            wrapper_params = (M,"normal"); coeff_gen_params = ("initialize", None, M, None, True, None, None, rand_lb, rand_ub)
             rmse_train, C = pmodel.multiple_multistart(restarts, powers, delta, F, V_train, *arg_train, len_C=len_C, C=C_params, 
                                                        wrapper=pmodel.lmfit_params_wrap_ansatz3,  wrapper_params=wrapper_params,
                                                        coeff_generator=pmodel.coeff_generator_ansatz3_unconstrained, coeff_gen_params=coeff_gen_params,
-                                                       mode="default")
+                                                       mode="default", verbose=True)
             
             
             '''
@@ -318,8 +319,8 @@ if __name__ == "__main__":
         exclusion = ["ansatz_1_C", "ansatz_2_C", "ansatz_3_C", "chipr_C"]
         print({key: data[key] for key in data if key not in exclusion})
         filename = "result/spec_split_data_fit_"+method+"_"+F_name+"_"+mol+"_"+datetime.datetime.now().strftime('%d%m%y_%H%M%S')+".pkl"
-#        with open(filename, 'wb') as handle:
-#            pickle.dump(data, handle)
+        with open(filename, 'wb') as handle:
+            pickle.dump(data, handle)
     
     def performance_comparison():
         '''compares the performance of each method'''
@@ -949,8 +950,8 @@ if __name__ == "__main__":
                 pickle.dump(data, handle)
         
     '''end of main functions, actual main starts below'''
-    cross_val_each_state_fit()
+    #cross_val_each_state_fit()
     #special_split_fit()
     #time_eval()
-    #special_split_fit_ansatz3()
+    special_split_fit_ansatz3()
     #split_data_fit_performance()
