@@ -878,7 +878,7 @@ if __name__ == "__main__":
         #Fs = [pmodel.f_diatomic_vdw, pmodel.f_diatomic_chipr_ohplus]
         Fs = [pmodel.f_diatomic_ansatz_0, pmodel.f_diatomic_ansatz_2_unconstrained, pmodel.f_diatomic_chipr_ohplus]
         F_names = ["ansatz_1", "ansatz_2", "CHIPR"]
-        Ms = [13, 6, 10]
+        Ms = [13, 5, 10]
         #M = 7; m = 6;
         m = 6
         len_Cs = [3*Ms[0]+1, 4*Ms[1]+7, 3*(m + 1) + Ms[2]] #number of free parameters

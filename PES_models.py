@@ -822,7 +822,7 @@ def multistart(n, delta, F, V, *F_args, len_C=100, C=None,
         while True: #NaN exception handler:
             try:
                 #minimization routine and objective function here:
-                out = minimize(f_obj_diatomic_pot_res_lmfit, C_params, args=(F, V, *F_args), method="bfgs")
+                out = minimize(f_obj_diatomic_pot_res_lmfit, C_params, args=(F, V, *F_args), method="bfgs", max_nfev=1e+10)
                 break
             except ValueError:
                 #reset C until no error:
