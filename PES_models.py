@@ -558,6 +558,11 @@ def f_obj_diatomic_pot_res_lmfit(C_param, *args):
     return residuals.flatten()
 
 
+
+'''-=-=-=-=-=-=-=-= triatomic models -=-=-=-=-=-=-=-='''
+#Su et al NN:
+
+
 '''======= coeff vectors generator ========='''
 
 def coeff_generator_ansatz3(mode="initialize", C=None, M=None, prev_M=None, random=True, pwr=1e-1, const=1e-3):

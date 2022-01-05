@@ -210,6 +210,10 @@ if __name__ == "__main__":
         
         test_size = 0.25
         R_train, R_test, V_train, V_test = train_test_split(R, V, test_size=test_size, random_state=0) #split data
+        print(R_train)
+        print(V_train)
+        print(R_test)
+        print(V_test)
 
         #F = pmodel.f_diatomic_ansatz_3
         F = pmodel.f_diatomic_ansatz_3_unconstrained # unconstrained version
@@ -319,8 +323,8 @@ if __name__ == "__main__":
         exclusion = ["ansatz_1_C", "ansatz_2_C", "ansatz_3_C", "chipr_C"]
         print({key: data[key] for key in data if key not in exclusion})
         filename = "result/spec_split_data_fit_"+method+"_"+F_name+"_"+mol+"_"+datetime.datetime.now().strftime('%d%m%y_%H%M%S')+".pkl"
-        with open(filename, 'wb') as handle:
-            pickle.dump(data, handle)
+#        with open(filename, 'wb') as handle:
+#            pickle.dump(data, handle)
     
     def performance_comparison():
         '''compares the performance of each method'''
