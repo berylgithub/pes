@@ -539,6 +539,49 @@ def f_pot_bond_wrapper(coeffs, *args):
     
     return V_pred
 
+def f_pot_bond_wrapper_trpp(coeffs, *args):
+    '''
+    "trainable reference pair potential (trpp)" version of wrapper for f_pot_bond; unrolls tuning coeffs.
+    params:
+        - coeffs: tuning coeffs in this order:
+            - C, R_h, R_low, R_0, R_m, R_up, R_C; scalar
+            - theta: matrix containing (A1, A2, B1, B2, C1, C2), shape = (6, num_basis)
+        - *args: function arguments in this order:
+            - num_basis: number of basis (column) in the phi matrix
+            - R: distance matrix, shape = (num_data, dof)
+            - X: coordinate matrix, shape = (num_data, num_atom, 3)
+            - indexer = matrix of atomic indexer, shape = (num_atom, num_atom-1)
+            - num_atom: number of atoms in molecule, scalar
+            - max_deg: maximum degree 
+            - e: hyperparameter for bond strength, scalar > 2
+            - g: hyperparameter for U, scalar (default=6)
+    '''
+    # unroll args first:
+    num_basis = args[0]
+    R = args[1]
+    X = args[2]
+    indexer = args[3]
+    num_atom = args[4]
+    max_deg = args[5]
+    e = args[6]
+    g = args[7]
+    
+    # unroll coefficients:
+    C = coeffs[0]; R_h = coeffs[1]; R_low = coeffs[2]; R_0 = coeffs[3]; R_m = coeffs[4]; R_up = coeffs[5]; R_C = coeffs[6];
+    A1 = coeffs[7: num_basis+7]
+    A2 = coeffs[num_basis+7: 2*num_basis+7]
+    B1 = coeffs[2*num_basis+7: 3*num_basis+7]
+    B2 = coeffs[3*num_basis+7: 4*num_basis+7]
+    C1 = coeffs[4*num_basis+7: 5*num_basis+7]
+    C2 = coeffs[5*num_basis+7: 6*num_basis+7]
+    
+    # compute energy from model:
+    V_pred = f_pot_bond(np.log(C), np.log(R_h)/20, np.sqrt(R_low), np.sqrt(R_0-R_low), np.sqrt(R_m-R_0), np.sqrt(R_up-R_m), np.sqrt(R_C-R_up),
+                        A1, A2, B1, B2, C1, C2, 
+                        R, X, indexer, num_atom, max_deg, e, g)
+    
+    return V_pred
+
 def f_obj_leastsquares(coeffs, *args):
     '''
     objective function in the form of residuals Y - Y_pred, shape = len(Y)
@@ -560,6 +603,7 @@ def f_obj_leastsquares(coeffs, *args):
     #print(res)
     
     return res
+
 
 if __name__=='__main__':
     '''unit tests:'''
@@ -696,14 +740,15 @@ if __name__=='__main__':
         V_test = f_pot_bond_wrapper(C0, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g)
         print(V_test)
 
+        
         # optimize test:
-        C0 = np.random.uniform(-.1, .1, 6*num_basis + 7)
+        C0 = np.random.uniform(.1, 2, 6*num_basis + 7)
         #(1,2,5,6) = (R_h, R_low, R_up, R_C)
-        sub_V = V[:]
-        sub_R = R[:]
-        sub_X = X[:]
+        sub_V = V[:100]
+        sub_R = R[:100]
+        sub_X = X[:100]
         C0[[1,2,5,6]] = [0,0,4,4]
-        res = least_squares(f_obj_leastsquares, C0, args=(f_pot_bond_wrapper, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g), verbose=2, method="trf")
+        res = least_squares(f_obj_leastsquares, C0, args=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g), verbose=2, method="trf")
         print(res.x)
         print(res.message)
 
