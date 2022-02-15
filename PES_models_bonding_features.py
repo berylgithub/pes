@@ -645,7 +645,7 @@ if __name__=='__main__':
         print("eps")
         print(eps)
 
-    def data_test():
+    def opt_test():
         # load data and coordinates:
         H3_data = np.load("data/h3/h3_data.npy")
         R = H3_data[:, 0:3]; V = H3_data[:, 3]
@@ -699,12 +699,23 @@ if __name__=='__main__':
         # optimize test:
         C0 = np.random.uniform(-.1, .1, 6*num_basis + 7)
         #(1,2,5,6) = (R_h, R_low, R_up, R_C)
-        sub_V = V[:100]
-        sub_R = R[:100]
-        sub_X = X[:100]
+        sub_V = V[:]
+        sub_R = R[:]
+        sub_X = X[:]
         C0[[1,2,5,6]] = [0,0,4,4]
-        res = least_squares(f_obj_leastsquares, C0, args=(f_pot_bond_wrapper, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g), verbose=1, method="trf")
+        res = least_squares(f_obj_leastsquares, C0, args=(f_pot_bond_wrapper, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g), verbose=2, method="trf")
+        print(res.x)
         print(res.message)
 
+        # RMSE:
+        V_pred = f_pot_bond_wrapper(res.x, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g)
+        rmse = pmodel.RMSE(V_pred, sub_V)
+        print("R_h, R_low, R_0, R_m, R_up, R_C", res.x[1:7])
+        print("pred, actual")
+        for i in range(V_pred.shape[0]):
+            print(V_pred[i], sub_V[i])
+        print("RMSE",rmse)
+
+
 #basis_function_tests()
-data_test()
+opt_test()
