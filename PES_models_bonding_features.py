@@ -696,7 +696,6 @@ if __name__=='__main__':
         V_test = f_pot_bond_wrapper(C0, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g)
         print(V_test)
 
-
         # optimize test:
         C0 = np.random.uniform(-.1, .1, 6*num_basis + 7)
         #(1,2,5,6) = (R_h, R_low, R_up, R_C)
@@ -706,6 +705,6 @@ if __name__=='__main__':
         C0[[1,2,5,6]] = [0,0,4,4]
         res = least_squares(f_obj_leastsquares, C0, args=(f_pot_bond_wrapper, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g), verbose=1, method="trf")
         print(res.message)
-        
+
 #basis_function_tests()
 data_test()
