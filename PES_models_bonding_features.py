@@ -798,7 +798,7 @@ if __name__=='__main__':
         print(res.message)
 
         # RMSE:
-        V_pred = f_pot_bond_wrapper_trpp(res.x, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g)
+        V_pred = f_pot_bond_wrapper_trpp(res.x[:-2], num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g)
         rmse = pmodel.RMSE(V_pred, sub_V)
         print("R_h, R_low, R_0, R_m, R_up, R_C", res.x[1:7])
         print("pred, actual")
