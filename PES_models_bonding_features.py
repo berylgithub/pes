@@ -4,12 +4,12 @@ import numpy as np, itertools
 import json
 from os import walk
 #data science:
-from scipy.optimize import least_squares
+from scipy.optimize import least_squares, minimize
 from scipy.interpolate import CubicSpline
 #dfbgn:
 import dfbgn
 #lmfit:
-from lmfit import Parameters, minimize
+import lmfit
 from lmfit.printfuncs import report_fit
 #timer:
 import time
@@ -455,7 +455,7 @@ def epsilon_wrapper(phi, A1, A2, B1, B2, C1, C2):
     return epsilon
 
 
-'''====== Objective fun ======'''
+'''====== Functional calculators ======'''
 # num params = 59*6 + 7
 # tuning params: C, R_h, R_low, R_0, R_m, R_up, R_C = scalar; A1, A2, B1, B2, C1, C2 = num_basis
 def f_pot_bond(C, R_h, R_low, R_0, R_m, R_up, R_C, A1, A2, B1, B2, C1, C2, R, X, indexer, num_atom, max_deg, e, g=6):
@@ -576,11 +576,15 @@ def f_pot_bond_wrapper_trpp(coeffs, *args):
     C2 = coeffs[5*num_basis+7: 6*num_basis+7]
     
     # compute energy from model:
+    #print(C, R_h, R_low, R_0, R_m, R_up, R_C)
+    #print(np.log(C), np.log(R_h)/20, np.sqrt(R_low), np.sqrt(R_0-R_low), np.sqrt(R_m-R_0), np.sqrt(R_up-R_m), np.sqrt(R_C-R_up))
     V_pred = f_pot_bond(np.log(C), np.log(R_h)/20, np.sqrt(R_low), np.sqrt(R_0-R_low), np.sqrt(R_m-R_0), np.sqrt(R_up-R_m), np.sqrt(R_C-R_up),
                         A1, A2, B1, B2, C1, C2, 
                         R, X, indexer, num_atom, max_deg, e, g)
     
     return V_pred
+
+'''=== Objective functions ==='''
 
 def f_obj_leastsquares(coeffs, *args):
     '''
@@ -603,6 +607,23 @@ def f_obj_leastsquares(coeffs, *args):
     #print(res)
     
     return res
+
+def f_obj_standard(coeffs, *args):
+    '''
+    objective function in the form of computed least squares \Sum \Sqr Y-Y_pred, in order to be used by more (standard) opt routines, shape = scalar
+    params:
+        - coeffs: array of coefficients, shape = len(coeffs)
+        - *args:
+            - F: evaluation function, F(.)
+            - Y: actual data, shape = len(Y)
+            - args[2:]: the rest of the arguments for F(.)
+    '''
+    # unroll variables:
+    F = args[0]
+    Y = args[1]
+    Y_pred = F(coeffs, *args[2:])
+
+    return np.sum((Y-Y_pred)**2)
 
 
 if __name__=='__main__':
@@ -710,7 +731,6 @@ if __name__=='__main__':
         # indexer matrix:
         indexer = atom_indexer(num_atom) 
 
-        start = time.time()
         '''
         #non wrapper version:
         V = f_pot_bond(C, R_h, R_low, R_0, R_m, R_up, R_C, 
@@ -726,11 +746,14 @@ if __name__=='__main__':
         coeffs[3*num_basis+7: 4*num_basis+7] = theta[3];
         coeffs[4*num_basis+7: 5*num_basis+7] = theta[4]; 
         coeffs[5*num_basis+7: 6*num_basis+7] = theta[5];
+        start = time.time()
         V_pred = f_pot_bond_wrapper(coeffs, num_basis, R, X, indexer, num_atom, max_deg, e, g)
-
-        print("time = ",time.time()-start)
+        elapsed = time.time()-start
         print(V_pred, V_pred.shape)
+        print("time = ",elapsed)
 
+        '''
+        # pred fun test:
         C0 = np.random.uniform(-.1, .1, 6*num_basis + 7)
         print("C0")
         print(C0)
@@ -739,18 +762,35 @@ if __name__=='__main__':
         sub_X = X[:100]
         V_test = f_pot_bond_wrapper(C0, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g)
         print(V_test)
+        '''
 
         
         # optimize test:
-        C0 = np.random.uniform(.1, 2, 6*num_basis + 7)
+        '''
+        
+        # residual:
+        C0 = np.random.uniform(-.1, .1, 6*num_basis + 7)
         #(1,2,5,6) = (R_h, R_low, R_up, R_C)
         sub_V = V[:100]
         sub_R = R[:100]
         sub_X = X[:100]
-        C0[[1,2,5,6]] = [0,0,4,4]
+        C0[[1,2,5,6]] = [.1,.1,4,4]
         res = least_squares(f_obj_leastsquares, C0, args=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g), verbose=2, method="trf")
         print(res.x)
         print(res.message)
+        '''
+
+        # constant:
+        C0 = np.random.uniform(-.1, .1, 6*num_basis + 7)
+        #(1,2,5,6) = (R_h, R_low, R_up, R_C)
+        sub_V = V[:100]
+        sub_R = R[:100]
+        sub_X = X[:100]
+        C0[[1,2,5,6]] = [.1,.1,4,4]
+        res = minimize(f_obj_standard, C0, args=(f_pot_bond_wrapper, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g), method="BFGS")
+        print(res.x)
+        print(res.message)
+
 
         # RMSE:
         V_pred = f_pot_bond_wrapper(res.x, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g)
