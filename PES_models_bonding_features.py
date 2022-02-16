@@ -585,7 +585,6 @@ def f_pot_bond_wrapper_trpp(coeffs, *args):
     return V_pred
 
 '''=== Objective functions ==='''
-
 def f_obj_leastsquares(coeffs, *args):
     '''
     objective function in the form of residuals Y - Y_pred, shape = len(Y)
@@ -625,6 +624,25 @@ def f_obj_standard(coeffs, *args):
 
     return np.sum((Y-Y_pred)**2)
 
+def f_obj_8_4(coeffs, *args):
+    '''
+    obj in sub 8.4 of Ulrik, includes \miu and \sigma (each shape = len(Datasets), however for testing just 1 data now shape = 1) in the tuning coeffs, Eq.66, shape = scalar
+    params:
+        - coeffs: array of coefficients, shape = len(coeffs)
+        - *args:
+            - F: evaluation function, F(.)
+            - Y: actual data, shape = len(Y)
+            - args[2:]: the rest of the arguments for F(.)
+    '''
+    # unroll variables:
+    F = args[0]
+    Y = args[1]
+    miu = coeffs[-1]
+    sigma = coeffs[-2]
+
+    Y_pred = F(coeffs[:-2], *args[2:])
+
+    return np.sum( ((Y-miu-Y_pred)**2)/(sigma**2) )
 
 if __name__=='__main__':
     '''unit tests:'''
@@ -752,48 +770,35 @@ if __name__=='__main__':
         print(V_pred, V_pred.shape)
         print("time = ",elapsed)
 
-        '''
-        # pred fun test:
-        C0 = np.random.uniform(-.1, .1, 6*num_basis + 7)
-        print("C0")
-        print(C0)
+        # Optimize test:
+        
+        # get subset data:
         sub_V = V[:100]
         sub_R = R[:100]
         sub_X = X[:100]
-        V_test = f_pot_bond_wrapper(C0, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g)
-        print(V_test)
-        '''
 
-        
-        # optimize test:
+        num_basis = 59; max_deg = 5; num_atom = 3; e = 3; g = 6; # fixed parameters
+        #C0 = np.random.uniform(-.1, .1, 6*num_basis + 7) # non 8.4 ver
+        C0 = np.random.uniform(-.1, .1, 6*num_basis + 9) # 8.4 ver, extra 2 tuning coeffs
+        C0[[1,2,5,6]] = [.1,.1,4,4] # (1,2,5,6) = (R_h, R_low, R_up, R_C)
+
+
         '''
-        
-        # residual:
-        C0 = np.random.uniform(-.1, .1, 6*num_basis + 7)
-        #(1,2,5,6) = (R_h, R_low, R_up, R_C)
-        sub_V = V[:100]
-        sub_R = R[:100]
-        sub_X = X[:100]
-        C0[[1,2,5,6]] = [.1,.1,4,4]
+        # residual mode:
         res = least_squares(f_obj_leastsquares, C0, args=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g), verbose=2, method="trf")
-        print(res.x)
-        print(res.message)
         '''
+        '''
+        # scalar mode:
+        res = minimize(f_obj_standard, C0, args=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g), method="BFGS")
+        '''
+        # 8.4 scalar mode:
+        res = minimize(f_obj_8_4, C0, args=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g), method="BFGS")
 
-        # constant:
-        C0 = np.random.uniform(-.1, .1, 6*num_basis + 7)
-        #(1,2,5,6) = (R_h, R_low, R_up, R_C)
-        sub_V = V[:100]
-        sub_R = R[:100]
-        sub_X = X[:100]
-        C0[[1,2,5,6]] = [.1,.1,4,4]
-        res = minimize(f_obj_standard, C0, args=(f_pot_bond_wrapper, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g), method="BFGS")
         print(res.x)
         print(res.message)
-
 
         # RMSE:
-        V_pred = f_pot_bond_wrapper(res.x, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g)
+        V_pred = f_pot_bond_wrapper_trpp(res.x, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g)
         rmse = pmodel.RMSE(V_pred, sub_V)
         print("R_h, R_low, R_0, R_m, R_up, R_C", res.x[1:7])
         print("pred, actual")
