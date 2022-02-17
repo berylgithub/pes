@@ -1,4 +1,5 @@
 #array op:
+from operator import eq
 import numpy as np, itertools
 #file op:
 import json
@@ -17,9 +18,14 @@ import time
 import pandas as pd
 import datetime
 #utilities:
-import warnings
+import warnings, sys
 #related modules:
 import PES_models as pmodel
+
+
+'''====== Utilities ======'''
+trunc_sqrt = lambda x: np.sqrt(x) if x >= 0 else 0 #truncated sqrt
+trunc_log = lambda x: np.log(x) if x > 0 else np.log(sys.float_info.min) #truncated log 
 
 
 '''====== The fundamentals: 8.1 Bonding features ======'''
@@ -539,9 +545,26 @@ def f_pot_bond_wrapper(coeffs, *args):
     
     return V_pred
 
+
+def eq_68_inverter(rho):
+    '''
+    inverts the value of each argument (according to eq 68 pg 64), shape = len(rho)
+    params:
+        - rho, shape = len(rho)
+    '''
+    pi = np.zeros(rho.shape[0])
+    pi[0] = np.exp(20*rho[0]) #C
+    pi[1] = np.exp(20*rho[1]) #R_h
+    pi[2] = np.square(rho[2]) #R_low
+    pi[3] = rho[3]**2 + pi[2] #R_0
+    pi[4] = rho[4]**2 + pi[3] #R_m
+    pi[5] = rho[5]**2 + pi[4] #R_up
+    pi[6] = rho[6]**2 + pi[5] #R_C
+    return pi
+
 def f_pot_bond_wrapper_trpp(coeffs, *args):
     '''
-    "trainable reference pair potential (trpp)" version of wrapper for f_pot_bond; unrolls tuning coeffs.
+    "trainable reference pair potential (trpp)" version of wrapper for f_pot_bond from eq 68; unrolls tuning coeffs.
     params:
         - coeffs: tuning coeffs in this order:
             - C, R_h, R_low, R_0, R_m, R_up, R_C; scalar
@@ -567,7 +590,7 @@ def f_pot_bond_wrapper_trpp(coeffs, *args):
     g = args[7]
     
     # unroll coefficients:
-    C = coeffs[0]; R_h = coeffs[1]; R_low = coeffs[2]; R_0 = coeffs[3]; R_m = coeffs[4]; R_up = coeffs[5]; R_C = coeffs[6];
+    #C = coeffs[0]; R_h = coeffs[1]; R_low = coeffs[2]; R_0 = coeffs[3]; R_m = coeffs[4]; R_up = coeffs[5]; R_C = coeffs[6];
     A1 = coeffs[7: num_basis+7]
     A2 = coeffs[num_basis+7: 2*num_basis+7]
     B1 = coeffs[2*num_basis+7: 3*num_basis+7]
@@ -578,7 +601,12 @@ def f_pot_bond_wrapper_trpp(coeffs, *args):
     # compute energy from model:
     #print(C, R_h, R_low, R_0, R_m, R_up, R_C)
     #print(np.log(C), np.log(R_h)/20, np.sqrt(R_low), np.sqrt(R_0-R_low), np.sqrt(R_m-R_0), np.sqrt(R_up-R_m), np.sqrt(R_C-R_up))
-    V_pred = f_pot_bond(np.log(C), np.log(R_h)/20, np.sqrt(R_low), np.sqrt(R_0-R_low), np.sqrt(R_m-R_0), np.sqrt(R_up-R_m), np.sqrt(R_C-R_up),
+    
+    # the coeff input is rho = (np.log(C)/20, np.log(R_h)/20, np.sqrt(R_low), np.sqrt(R_0-R_low), np.sqrt(R_m-R_0), np.sqrt(R_up-R_m), np.sqrt(R_C-R_up))
+    pi = eq_68_inverter(coeffs[0:7]) # compute the pi := inverse of rho
+    #print("initcoeffs", coeffs[0:7])
+    print("pi", pi)
+    V_pred = f_pot_bond(pi[0], pi[1], pi[2], pi[3], pi[4], pi[5], pi[6], 
                         A1, A2, B1, B2, C1, C2, 
                         R, X, indexer, num_atom, max_deg, e, g)
     
@@ -755,6 +783,7 @@ if __name__=='__main__':
                     theta[0], theta[1], theta[2], theta[3], theta[4], theta[5],
                     R, X, indexer, num_atom, max_deg, e, g)
         '''
+        '''
         #wrapper version:
         coeffs = np.zeros((6*num_basis + 7))
         coeffs[0] = C; coeffs[1] = R_h; coeffs[2] = R_low; coeffs[3] = R_0; coeffs[4] = R_m; coeffs[5] = R_up; coeffs[6] = R_C
@@ -769,9 +798,9 @@ if __name__=='__main__':
         elapsed = time.time()-start
         print(V_pred, V_pred.shape)
         print("time = ",elapsed)
+        '''
 
-        # Optimize test:
-        
+        # === Optimize test: ===
         # get subset data:
         sub_V = V[:100]
         sub_R = R[:100]
@@ -780,25 +809,31 @@ if __name__=='__main__':
         num_basis = 59; max_deg = 5; num_atom = 3; e = 3; g = 6; # fixed parameters
         #C0 = np.random.uniform(-.1, .1, 6*num_basis + 7) # non 8.4 ver
         C0 = np.random.uniform(-.1, .1, 6*num_basis + 9) # 8.4 ver, extra 2 tuning coeffs
-        C0[[1,2,5,6]] = [.1,.1,4,4] # (1,2,5,6) = (R_h, R_low, R_up, R_C)
+        C0[[1,2,5,6]] = [-.1,-.1,4,4] # (1,2,5,6) = (R_h, R_low, R_up, R_C)
 
-
-        '''
         # residual mode:
-        res = least_squares(f_obj_leastsquares, C0, args=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g), verbose=2, method="trf")
-        '''
-        '''
+        #res = least_squares(f_obj_leastsquares, C0, args=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g), verbose=2, method="trf")
         # scalar mode:
         res = minimize(f_obj_standard, C0, args=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g), method="BFGS")
-        '''
         # 8.4 scalar mode:
-        res = minimize(f_obj_8_4, C0, args=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g), method="BFGS")
+        #res = minimize(f_obj_8_4, C0, args=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g), method="BFGS")
+
+        '''
+        # === residuals ===
+        # eq 68 mode:
+        res.x[0:7] = eq_68_inverter(res.x[0:7])
+        '''
 
         print(res.x)
         print(res.message)
 
-        # RMSE:
-        V_pred = f_pot_bond_wrapper_trpp(res.x[:-2], num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g)
+        # === RMSE: ===
+        # standard obj mode:
+        V_pred = f_pot_bond_wrapper_trpp(res.x, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g)
+        
+        # 8.4 mode (extra 2 params: miu and sigma):
+        #V_pred = f_pot_bond_wrapper_trpp(res.x[:-2], num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g)
+        
         rmse = pmodel.RMSE(V_pred, sub_V)
         print("R_h, R_low, R_0, R_m, R_up, R_C", res.x[1:7])
         print("pred, actual")
