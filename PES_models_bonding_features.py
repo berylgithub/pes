@@ -605,7 +605,7 @@ def f_pot_bond_wrapper_trpp(coeffs, *args):
     # the coeff input is rho = (np.log(C)/20, np.log(R_h)/20, np.sqrt(R_low), np.sqrt(R_0-R_low), np.sqrt(R_m-R_0), np.sqrt(R_up-R_m), np.sqrt(R_C-R_up))
     pi = eq_68_inverter(coeffs[0:7]) # compute the pi := inverse of rho
     #print("initcoeffs", coeffs[0:7])
-    print("pi", pi)
+    #print("pi", pi)
     V_pred = f_pot_bond(pi[0], pi[1], pi[2], pi[3], pi[4], pi[5], pi[6], 
                         A1, A2, B1, B2, C1, C2, 
                         R, X, indexer, num_atom, max_deg, e, g)
@@ -807,9 +807,9 @@ if __name__=='__main__':
         sub_X = X[:100]
 
         num_basis = 59; max_deg = 5; num_atom = 3; e = 3; g = 6; # fixed parameters
-        #C0 = np.random.uniform(-.1, .1, 6*num_basis + 7) # non 8.4 ver
-        C0 = np.random.uniform(-.1, .1, 6*num_basis + 9) # 8.4 ver, extra 2 tuning coeffs
-        C0[[1,2,5,6]] = [-.1,-.1,4,4] # (1,2,5,6) = (R_h, R_low, R_up, R_C)
+        C0 = np.random.uniform(-5., 5., 6*num_basis + 7) # non 8.4 ver
+        #C0 = np.random.uniform(-.1, .1, 6*num_basis + 9) # 8.4 ver, extra 2 tuning coeffs
+        #C0[[1,2,5,6]] = [-.1,-.1,4,4] # (1,2,5,6) = (R_h, R_low, R_up, R_C)
 
         # residual mode:
         #res = least_squares(f_obj_leastsquares, C0, args=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g), verbose=2, method="trf")
