@@ -674,24 +674,27 @@ def f_obj_8_4(coeffs, *args):
 
 '''==== multistart opt ===='''
 def multistart_method(F_obj, F_eval, Y_test, 
-                      C_lb = -5., C_ub = 5., C_size = 100, method = "trf",
-                      resets = 5, inner_loop_mode = False, inner_loop = 5, constant = 0.1, verbose_multi=False, verbose_min=False,
+                      C_lb = -5., C_ub = 5., C_size = 100, mode = "leastsquares", method = "trf",
+                      resets = 5, inner_loop_mode = False, inner_loop = 5, constant = 0.1, verbose_multi=0, verbose_min=0,
                       args_obj = None, args_eval = None
                      ):
     '''
     multi-start method revisited, same ol' (hopefully more modular/general), returns the RMSE and tuning coeff
     '''
-    min_RMSE = np.inf; min_C = None
+    min_RMSE = np.inf; min_C = None; res = None
     # non inner loop mode:
     for i in range(resets):
         # re-init C:
         C = np.random.uniform(C_lb, C_ub, C_size)
         # optimize:
-        res = minimize(F_obj, C, args=args_obj, method=method) #scipy's minimizer 
+        if mode == "leastsquares":
+            res = least_squares(F_obj, C, args=args_obj, method=method, verbose=verbose_min) # scipy's minimizer
+        elif mode == "standard":
+            res = minimize(F_obj, C, args=args_obj, method=method) # scipy's minimizer 
         # compute RMSE:
         Y_pred = F_eval(res.x, *args_eval)
         rmse = pmodel.RMSE(Y_test, Y_pred)
-        if verbose_multi:
+        if verbose_multi == 1:
             print(i, rmse)
         if rmse < min_RMSE:
             min_RMSE = rmse; min_C = res.x
@@ -875,11 +878,18 @@ if __name__=='__main__':
         
         # fixed parameters:
         num_basis = 59; max_deg = 5; num_atom = 3; e = 3; g = 6;
+        indexer = atom_indexer(num_atom) 
 
         # multirestart:
-        multistart_method()
-
+        rmse, C = multistart_method(f_obj_leastsquares, f_pot_bond_wrapper_trpp, 
+                                    Y_test=sub_V, C_lb=-10., C_ub=10., C_size=6*num_basis+7, mode="leastsquares",
+                                    resets=10, verbose_multi=1, verbose_min=2,
+                                    args_obj=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g),
+                                    args_eval=(num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g))
+        print('final rmse', rmse)
+        print(repr(C))
 
 
 #basis_function_tests()
-opt_test()
+#opt_test()
+multistart_test()
