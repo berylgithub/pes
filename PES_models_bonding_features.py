@@ -672,6 +672,34 @@ def f_obj_8_4(coeffs, *args):
 
     return np.sum( ((Y-miu-Y_pred)**2)/(sigma**2) )
 
+'''==== multistart opt ===='''
+def multistart_method(F_obj, F_eval, Y_test, 
+                      C_lb = -5., C_ub = 5., C_size = 100, method = "trf",
+                      resets = 5, inner_loop_mode = False, inner_loop = 5, constant = 0.1, verbose_multi=False, verbose_min=False,
+                      args_obj = None, args_eval = None
+                     ):
+    '''
+    multi-start method revisited, same ol' (hopefully more modular/general), returns the RMSE and tuning coeff
+    '''
+    min_RMSE = np.inf; min_C = None
+    # non inner loop mode:
+    for i in range(resets):
+        # re-init C:
+        C = np.random.uniform(C_lb, C_ub, C_size)
+        # optimize:
+        res = minimize(F_obj, C, args=args_obj, method=method) #scipy's minimizer 
+        # compute RMSE:
+        Y_pred = F_eval(res.x, *args_eval)
+        rmse = pmodel.RMSE(Y_test, Y_pred)
+        if verbose_multi:
+            print(i, rmse)
+        if rmse < min_RMSE:
+            min_RMSE = rmse; min_C = res.x
+    # if inner_loop_mode:
+    
+    return min_RMSE, min_C
+
+
 if __name__=='__main__':
     '''unit tests:'''
     def basis_function_tests():
@@ -807,24 +835,18 @@ if __name__=='__main__':
         sub_X = X[:100]
 
         num_basis = 59; max_deg = 5; num_atom = 3; e = 3; g = 6; # fixed parameters
-        C0 = np.random.uniform(-5., 5., 6*num_basis + 7) # non 8.4 ver
+        C0 = np.random.uniform(-20, 20., 6*num_basis + 7) # non 8.4 ver
         #C0 = np.random.uniform(-.1, .1, 6*num_basis + 9) # 8.4 ver, extra 2 tuning coeffs
         #C0[[1,2,5,6]] = [-.1,-.1,4,4] # (1,2,5,6) = (R_h, R_low, R_up, R_C)
 
         # residual mode:
-        #res = least_squares(f_obj_leastsquares, C0, args=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g), verbose=2, method="trf")
+        res = least_squares(f_obj_leastsquares, C0, args=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g), verbose=2, method="trf")
         # scalar mode:
-        res = minimize(f_obj_standard, C0, args=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g), method="BFGS")
+        #res = minimize(f_obj_standard, C0, args=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g), method="BFGS")
         # 8.4 scalar mode:
         #res = minimize(f_obj_8_4, C0, args=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g), method="BFGS")
 
-        '''
-        # === residuals ===
-        # eq 68 mode:
-        res.x[0:7] = eq_68_inverter(res.x[0:7])
-        '''
-
-        print(res.x)
+        print(repr(res.x)) #print with commas
         print(res.message)
 
         # === RMSE: ===
@@ -840,6 +862,23 @@ if __name__=='__main__':
         for i in range(V_pred.shape[0]):
             print(V_pred[i], sub_V[i])
         print("RMSE",rmse)
+
+    def multistart_test():
+        # load data and coordinates:
+        H3_data = np.load("data/h3/h3_data.npy")
+        R = H3_data[:, 0:3]; V = H3_data[:, 3]
+        X = np.load("data/h3/h3_coord.npy")
+        # get subset:
+        sub_V = V[:100]
+        sub_R = R[:100]
+        sub_X = X[:100]
+        
+        # fixed parameters:
+        num_basis = 59; max_deg = 5; num_atom = 3; e = 3; g = 6;
+
+        # multirestart:
+        multistart_method()
+
 
 
 #basis_function_tests()
