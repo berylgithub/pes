@@ -480,14 +480,14 @@ def f_pot_bond(C, R_h, R_low, R_0, R_m, R_up, R_C, A1, A2, B1, B2, C1, C2, R, X,
     '''
     # compute U basis, contains tuning params (C, R_h, R_C, R_0):
     U = U_ref_energy(R, C, R_h, R_C, R_0, g, indexer)
-    #print('U')
-    #print(U)
+    print('U')
+    print(U)
     #
     # compute Y basis, contains tuning params (R_up, R_m, R_low):
     b = gen_bijd_mat(R, max_deg, num_atom, R_up, R_m, R_low, e)
     Y = Y_coord_mat(b, indexer)
-    #print("b")
-    #print(b)
+    print("b")
+    print(b)
     
     # compute G basis:
     delta = delta_coord_matrix(X)
@@ -496,8 +496,8 @@ def f_pot_bond(C, R_h, R_low, R_0, R_m, R_up, R_C, A1, A2, B1, B2, C1, C2, R, X,
     
     # compute phi matrix:
     phi = phi_fun(U, Y, G)
-    #print('phi')
-    #print(phi)
+    print('phi')
+    print(phi)
     
     # compute the energy, contains tuning params (A1, A2, B1, B2, C1, C2):
     V = epsilon_wrapper(phi, A1, A2, B1, B2, C1, C2)
@@ -687,10 +687,21 @@ def multistart_method(F_obj, F_eval, Y_test,
         # re-init C:
         C = np.random.uniform(C_lb, C_ub, C_size)
         # optimize:
-        if mode == "leastsquares":
-            res = least_squares(F_obj, C, args=args_obj, method=method, verbose=verbose_min) # scipy's minimizer
-        elif mode == "standard":
-            res = minimize(F_obj, C, args=args_obj, method=method) # scipy's minimizer 
+        while True: #NaN exception handler:
+            try:
+                #minimization routine and objective function here:
+                if mode == "leastsquares":
+                    res = least_squares(F_obj, C, args=args_obj, method=method, verbose=verbose_min) # scipy's minimizer
+                elif mode == "standard":
+                    res = minimize(F_obj, C, args=args_obj, method=method) # scipy's minimizer 
+                break
+            except ValueError:
+                #reset C until no error:
+                if verbose_multi == 1:
+                    print("ValueError!!, resetting C")  
+                # re-init C:
+                C = np.random.uniform(C_lb, C_ub, C_size)  
+                continue
         # compute RMSE:
         Y_pred = F_eval(res.x, *args_eval)
         rmse = pmodel.RMSE(Y_test, Y_pred)
@@ -698,6 +709,7 @@ def multistart_method(F_obj, F_eval, Y_test,
             print(i, rmse)
         if rmse < min_RMSE:
             min_RMSE = rmse; min_C = res.x
+            print("better RMSE obtained !!, rmse = ",min_RMSE)
     # if inner_loop_mode:
     
     return min_RMSE, min_C
@@ -882,7 +894,7 @@ if __name__=='__main__':
 
         # multirestart:
         rmse, C = multistart_method(f_obj_leastsquares, f_pot_bond_wrapper_trpp, 
-                                    Y_test=sub_V, C_lb=-10., C_ub=10., C_size=6*num_basis+7, mode="leastsquares",
+                                    Y_test=sub_V, C_lb=-20., C_ub=20., C_size=6*num_basis+7, mode="leastsquares",
                                     resets=10, verbose_multi=1, verbose_min=2,
                                     args_obj=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g),
                                     args_eval=(num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g))
@@ -890,6 +902,6 @@ if __name__=='__main__':
         print(repr(C))
 
 
-#basis_function_tests()
-#opt_test()
-multistart_test()
+    #basis_function_tests()
+    #opt_test()
+    multistart_test()
