@@ -479,16 +479,16 @@ def f_pot_bond(C, R_h, R_low, R_0, R_m, R_up, R_C, A1, A2, B1, B2, C1, C2, R, X,
         - g: hyperparameter for U, scalar (default=6)
     '''
     # compute U basis, contains tuning params (C, R_h, R_C, R_0):
-    print("C, R_h, R_C, R_0", C, R_h, R_C, R_0)
+    #print("C, R_h, R_C, R_0", C, R_h, R_C, R_0)
     U = U_ref_energy(R, C, R_h, R_C, R_0, g, indexer)
-    print('U')
-    print(U)
-    #
+    #print('U')
+    #print(U)
+    
     # compute Y basis, contains tuning params (R_up, R_m, R_low):
     b = gen_bijd_mat(R, max_deg, num_atom, R_up, R_m, R_low, e)
     Y = Y_coord_mat(b, indexer)
-    print("b")
-    print(b)
+    #print("b")
+    #print(b)
     
     # compute G basis:
     delta = delta_coord_matrix(X)
@@ -497,8 +497,8 @@ def f_pot_bond(C, R_h, R_low, R_0, R_m, R_up, R_C, A1, A2, B1, B2, C1, C2, R, X,
     
     # compute phi matrix:
     phi = phi_fun(U, Y, G)
-    print('phi')
-    print(phi)
+    #print('phi')
+    #print(phi)
     
     # compute the energy, contains tuning params (A1, A2, B1, B2, C1, C2):
     V = epsilon_wrapper(phi, A1, A2, B1, B2, C1, C2)
@@ -892,8 +892,9 @@ if __name__=='__main__':
         # fixed parameters:
         num_basis = 59; max_deg = 5; num_atom = 3; e = 3; g = 6;
         indexer = atom_indexer(num_atom) 
-
+        
         # multirestart:
+        print("resets = ",40)
         rmse, C = multistart_method(f_obj_leastsquares, f_pot_bond_wrapper_trpp, 
                                     Y_test=sub_V, C_lb=-20., C_ub=20., C_size=6*num_basis+7, mode="leastsquares",
                                     resets=40, verbose_multi=1, verbose_min=2,
