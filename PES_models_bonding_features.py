@@ -479,6 +479,7 @@ def f_pot_bond(C, R_h, R_low, R_0, R_m, R_up, R_C, A1, A2, B1, B2, C1, C2, R, X,
         - g: hyperparameter for U, scalar (default=6)
     '''
     # compute U basis, contains tuning params (C, R_h, R_C, R_0):
+    print("C, R_h, R_C, R_0", C, R_h, R_C, R_0)
     U = U_ref_energy(R, C, R_h, R_C, R_0, g, indexer)
     print('U')
     print(U)
