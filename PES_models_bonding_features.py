@@ -896,7 +896,7 @@ if __name__=='__main__':
         # multirestart:
         rmse, C = multistart_method(f_obj_leastsquares, f_pot_bond_wrapper_trpp, 
                                     Y_test=sub_V, C_lb=-20., C_ub=20., C_size=6*num_basis+7, mode="leastsquares",
-                                    resets=10, verbose_multi=1, verbose_min=2,
+                                    resets=40, verbose_multi=1, verbose_min=2,
                                     args_obj=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g),
                                     args_eval=(num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g))
         print('final rmse', rmse)
