@@ -926,5 +926,5 @@ if __name__=='__main__':
 
 
     #basis_function_tests()
-    opt_test()
-    #multistart_test()
+    #opt_test()
+    multistart_test()
