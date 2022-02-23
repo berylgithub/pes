@@ -24,8 +24,8 @@ import PES_models as pmodel
 
 
 '''====== Utilities ======'''
-trunc_sqrt = lambda x: np.sqrt(x) if x >= 0 else 0 #truncated sqrt
-trunc_log = lambda x: np.log(x) if x > 0 else np.log(sys.float_info.min) #truncated log 
+tsqrt = lambda x: np.sqrt(x) if x >= 0 else 0 #truncated sqrt
+tlog = lambda x: np.log(x) if x > 0 else np.log(sys.float_info.min) #truncated log 
 
 
 '''====== The fundamentals: 8.1 Bonding features ======'''
@@ -547,13 +547,32 @@ def f_pot_bond_wrapper(coeffs, *args):
     return V_pred
 
 
+def eq_68_converter(rho):
+    '''
+    converts the value of each argument by (according to eq 68 pg 64), shape = len(rho)
+    '''
+    pi = np.zeros(rho.shape[0])
+
+    # compute the parameters change:
+    pi[0] = tlog(rho[0])/20 # log(C)/20
+    pi[1] = tlog(rho[1])/20 # log(Rh)/20
+    pi[2] = tsqrt(rho[2]) # sqrt(R_low)
+    pi[3] = tsqrt(rho[3] - rho[2]) # sqrt(R_0 - R_low)
+    pi[4] = tsqrt(rho[4] - rho[3]) # sqrt(R_m - R_0)
+    pi[5] = tsqrt(rho[5] - rho[4]) # sqrt(R_up - R_m)
+    pi[6] = tsqrt(rho[6] - rho[5]) # sqrt(R_C - R_up)
+    
+    return pi
+
 def eq_68_inverter(rho):
     '''
-    inverts the value of each argument (according to eq 68 pg 64), shape = len(rho)
+    inverts the value of each argument by (according to eq 68 pg 64), shape = len(rho)
     params:
         - rho, shape = len(rho)
     '''
     pi = np.zeros(rho.shape[0])
+
+    # compute the inverse:
     pi[0] = np.exp(20*rho[0]) #C
     pi[1] = np.exp(20*rho[1]) #R_h
     pi[2] = np.square(rho[2]) #R_low
@@ -604,7 +623,8 @@ def f_pot_bond_wrapper_trpp(coeffs, *args):
     #print(np.log(C), np.log(R_h)/20, np.sqrt(R_low), np.sqrt(R_0-R_low), np.sqrt(R_m-R_0), np.sqrt(R_up-R_m), np.sqrt(R_C-R_up))
     
     # the coeff input is rho = (np.log(C)/20, np.log(R_h)/20, np.sqrt(R_low), np.sqrt(R_0-R_low), np.sqrt(R_m-R_0), np.sqrt(R_up-R_m), np.sqrt(R_C-R_up))
-    pi = eq_68_inverter(coeffs[0:7]) # compute the pi := inverse of rho
+    pi = eq_68_converter(coeffs[0:7]) # computes rho
+    pi = eq_68_inverter(pi) # compute the pi := inverse of rho
     #print("initcoeffs", coeffs[0:7])
     #print("pi", pi)
     V_pred = f_pot_bond(pi[0], pi[1], pi[2], pi[3], pi[4], pi[5], pi[6], 
