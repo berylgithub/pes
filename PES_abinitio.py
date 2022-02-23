@@ -3,12 +3,12 @@ import psi4
 import time
 
 h2_geometry = """
-H
+Ne
 --
-H 1 {0}
+Ne 1 {0}
 """
 
-Rvals = [2.5, 3.0]
+Rvals = np.array([2.5, 3.0, 5.0])
 
 psi4.set_options({'freeze_core': 'true'})
 
