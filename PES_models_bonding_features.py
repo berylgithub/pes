@@ -914,10 +914,11 @@ if __name__=='__main__':
         indexer = atom_indexer(num_atom) 
         
         # multirestart:
-        print("resets = ",40)
+        resets = 20
+        print("resets = ",resets)
         rmse, C = multistart_method(f_obj_leastsquares, f_pot_bond_wrapper_trpp, 
                                     Y_test=sub_V, C_lb=-20., C_ub=20., C_size=6*num_basis+7, mode="leastsquares",
-                                    resets=40, verbose_multi=1, verbose_min=2,
+                                    resets=resets, verbose_multi=1, verbose_min=2,
                                     args_obj=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g),
                                     args_eval=(num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g))
         print('final rmse', rmse)
@@ -925,5 +926,5 @@ if __name__=='__main__':
 
 
     #basis_function_tests()
-    #opt_test()
-    multistart_test()
+    opt_test()
+    #multistart_test()
