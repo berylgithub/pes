@@ -8,25 +8,29 @@ from os import walk
 from scipy.optimize import least_squares, minimize
 from scipy.interpolate import CubicSpline
 #dfbgn:
-import dfbgn
+#import dfbgn
 #lmfit:
-import lmfit
-from lmfit.printfuncs import report_fit
+#import lmfit
+#from lmfit.printfuncs import report_fit
 #timer:
 import time
 #visualization:
-import pandas as pd
+#import pandas as pd
 import datetime
 #utilities:
 import warnings, sys
 #related modules:
-import PES_models as pmodel
+#import PES_models as pmodel
 
 
 '''====== Utilities ======'''
 tsqrt = lambda x: np.sqrt(x) if x >= 0 else 0 #truncated sqrt
 tlog = lambda x: np.log(x) if x > 0 else np.log(sys.float_info.min) #truncated log 
 
+# rmse:
+def RMSE(Y, Y_pred):
+    N = Y.shape[0]
+    return np.sqrt(np.sum((Y-Y_pred)**2)/N)
 
 '''====== The fundamentals: 8.1 Bonding features ======'''
 # bond strength:
@@ -725,7 +729,7 @@ def multistart_method(F_obj, F_eval, Y_test,
                 continue
         # compute RMSE:
         Y_pred = F_eval(res.x, *args_eval)
-        rmse = pmodel.RMSE(Y_test, Y_pred)
+        rmse = RMSE(Y_test, Y_pred)
         if verbose_multi == 1:
             print(i, rmse)
         if rmse < min_RMSE:
@@ -892,7 +896,7 @@ if __name__=='__main__':
         # 8.4 mode (extra 2 params: miu and sigma):
         #V_pred = f_pot_bond_wrapper_trpp(res.x[:-2], num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g)
         
-        rmse = pmodel.RMSE(V_pred, sub_V)
+        rmse = RMSE(V_pred, sub_V)
         print("R_h, R_low, R_0, R_m, R_up, R_C", res.x[1:7])
         print("pred, actual")
         for i in range(V_pred.shape[0]):
@@ -914,7 +918,7 @@ if __name__=='__main__':
         indexer = atom_indexer(num_atom) 
         
         # multirestart:
-        resets = 20
+        resets = 1
         print("resets = ",resets)
         rmse, C = multistart_method(f_obj_leastsquares, f_pot_bond_wrapper_trpp, 
                                     Y_test=sub_V, C_lb=-20., C_ub=20., C_size=6*num_basis+7, mode="leastsquares",
