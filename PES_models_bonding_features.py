@@ -926,8 +926,10 @@ if __name__=='__main__':
                                     args_obj=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g),
                                     args_eval=(num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g))
         print('final rmse', rmse)
-        print(repr(C))
-
+        #print(repr(C))
+        # save to file:
+        np.savetxt('c_params.out', C, delimiter=',')
+        print(np.loadtxt('c_params.out'))
 
     #basis_function_tests()
     #opt_test()
