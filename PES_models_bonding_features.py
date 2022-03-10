@@ -1,27 +1,28 @@
-#array op:
+# array op:
 from operator import eq
 import numpy as np, itertools
-#file op:
+# file op:
 import json
 from os import walk
-#data science:
+# data science:
 from scipy.optimize import least_squares, minimize
 from scipy.interpolate import CubicSpline
-#dfbgn:
+# dfbgn:
 #import dfbgn
-#lmfit:
+# lmfit:
 #import lmfit
 #from lmfit.printfuncs import report_fit
-#timer:
+# timer:
 import time
-#visualization:
+# visualization:
 #import pandas as pd
 import datetime
-#utilities:
+# utilities:
 import warnings, sys
-#related modules:
+# related modules:
 #import PES_models as pmodel
-
+# parallelization:
+import multiprocessing
 
 '''====== Utilities ======'''
 tsqrt = lambda x: np.sqrt(x) if x >= 0 else 0 #truncated sqrt
@@ -699,7 +700,7 @@ def f_obj_8_4(coeffs, *args):
 
 '''==== multistart opt ===='''
 def multistart_method(F_obj, F_eval, Y_test, 
-                      C_lb = -5., C_ub = 5., C_size = 100, mode = "leastsquares", method = "trf",
+                      C_lb = -5., C_ub = 5., C_size = 100, mode = "leastsquares", method = "trf", max_nfev=None,
                       resets = 5, inner_loop_mode = False, inner_loop = 5, constant = 0.1, verbose_multi=0, verbose_min=0,
                       args_obj = None, args_eval = None
                      ):
@@ -716,7 +717,7 @@ def multistart_method(F_obj, F_eval, Y_test,
             try:
                 #minimization routine and objective function here:
                 if mode == "leastsquares":
-                    res = least_squares(F_obj, C, args=args_obj, method=method, verbose=verbose_min) # scipy's minimizer
+                    res = least_squares(F_obj, C, args=args_obj, method=method, verbose=verbose_min, max_nfev=max_nfev) # scipy's minimizer
                 elif mode == "standard":
                     res = minimize(F_obj, C, args=args_obj, method=method) # scipy's minimizer 
                 break
@@ -739,6 +740,91 @@ def multistart_method(F_obj, F_eval, Y_test,
     
     return min_RMSE, min_C
 
+'''
+parallel multistart, restart-level parallelization:
+'''
+def getSeed(rank, size, count):
+    modif = (rank)**11 + (size)**7 + (count)**3
+    seeder = int(time.time())    
+    if seeder>modif:
+        #print("timer > modif")
+        seeder = seeder - modif
+    elif modif>(2**32)-1:
+        #print("modif > 2**32")
+        seeder = modif % seeder
+    else:
+        #print("modif > timer")
+        seeder = modif - seeder
+    return seeder
+
+def generate_C(i, F_obj, C_lb, C_ub, C_size, mode, method, resets, max_nfev, verbose_multi, verbose_min, args_obj, res_return):
+    # re-init C:
+    count = 1
+    #print("process "+str(i))
+    seeder = getSeed(i,resets, count)        
+    np.random.seed(seeder)
+    C = np.random.uniform(C_lb, C_ub, C_size)
+    # optimize:
+    while True: #NaN exception handler:
+        try:
+            #print(i, C)
+            #minimization routine and objective function here:
+            if mode == "leastsquares":
+                res = least_squares(F_obj, C, args=args_obj, method=method, verbose=verbose_min, max_nfev=max_nfev) # scipy's minimizer
+            elif mode == "standard":
+                res = minimize(F_obj, C, args=args_obj, method=method) # scipy's minimizer 
+            break
+        except ValueError:
+            #reset C until no error:
+            if verbose_multi == 1:
+                print("ValueError!!, resetting C")  
+            # re-init C:                
+            count+=1
+            seeder = getSeed(i,resets, count)        
+            np.random.seed(seeder)
+            print("process "+str(i)+" re-init | new seed : ",seeder," useable ", 0<seeder<2**32 -1)
+            C = np.random.uniform(C_lb, C_ub, C_size)  
+            continue
+    #np.savetxt("res/multi "+str(i)+" of "+str(resets)+" seed "+str(seeder)+".txt", res.x, newline='\n')
+    res_return[i] = res
+
+def multistart_method_parallel(F_obj, F_eval, Y_test, 
+                      C_lb = -5., C_ub = 5., C_size = 100, mode = "leastsquares", method = "trf", max_nfev=None,
+                      resets = 5, inner_loop_mode = False, inner_loop = 5, constant = 0.1, verbose_multi=0, verbose_min=0,
+                      args_obj = None, args_eval = None
+                     ):
+    '''
+    multi-start method revisited, same ol' (hopefully more modular/general), returns the RMSE and tuning coeff
+    '''
+    min_RMSE = np.inf; min_C = None; res = None
+    #if not os.path.exists('res'):
+    #    os.makedirs('res')
+    
+    # non inner loop mode:
+    manager = multiprocessing.Manager()
+    res_return = manager.dict()
+    jobs = []
+    for i in range(resets):
+        p = multiprocessing.Process(target=generate_C, args=(i, F_obj, C_lb, C_ub, C_size, mode, method, resets, max_nfev, verbose_multi, verbose_min, args_obj, res_return))
+        jobs.append(p)
+        p.start()
+    for proc in jobs:
+        proc.join()
+    
+    res  = res_return.values()
+    #print(res)
+    for i in range(resets):
+        # compute RMSE:
+        Y_pred = F_eval(res[i].x, *args_eval)
+        rmse = RMSE(Y_test, Y_pred)                
+        if verbose_multi == 1:
+            print(i, rmse)
+        if rmse < min_RMSE:
+            min_RMSE = rmse; min_C = res[i].x
+            print("better RMSE obtained !!, rmse = ",min_RMSE)
+    # if inner_loop_mode:
+    
+    return min_RMSE, min_C
 
 if __name__=='__main__':
     '''unit tests:'''
@@ -918,18 +1004,33 @@ if __name__=='__main__':
         indexer = atom_indexer(num_atom) 
         
         # multirestart:
-        resets = 1
+        resets = 100
         print("resets = ",resets)
+        start = time.time()
+        
+        #singlecore ver:
+        '''
         rmse, C = multistart_method(f_obj_leastsquares, f_pot_bond_wrapper_trpp, 
-                                    Y_test=sub_V, C_lb=-20., C_ub=20., C_size=6*num_basis+7, mode="leastsquares",
+                                    Y_test=sub_V, C_lb=-20., C_ub=20., C_size=6*num_basis+7, mode="leastsquares", max_nfev=2000,
                                     resets=resets, verbose_multi=1, verbose_min=2,
                                     args_obj=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g),
                                     args_eval=(num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g))
-        print('final rmse', rmse)
-        #print(repr(C))
+        '''
+        #parallel ver:
+        rmse, C = multistart_method_parallel(f_obj_leastsquares, f_pot_bond_wrapper_trpp, 
+                                    Y_test=sub_V, C_lb=-20., C_ub=20., C_size=6*num_basis+7, mode="leastsquares", max_nfev=2000,
+                                    resets=resets, verbose_multi=1, verbose_min=2,
+                                    args_obj=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g),
+                                    args_eval=(num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g))
+        
+        elapsed = time.time()-start
         # save to file:
         np.savetxt('c_params.out', C, delimiter=',')
         print(np.loadtxt('c_params.out'))
+        print("time = ",elapsed)
+        print('final rmse', rmse)
+        #print(repr(C))
+        
 
     #basis_function_tests()
     #opt_test()
