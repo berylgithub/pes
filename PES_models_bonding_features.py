@@ -911,6 +911,8 @@ if __name__=='__main__':
         print(eps)
 
     def opt_test():
+        print("Single opt mode!")
+        
         # load data and coordinates:
         H3_data = np.load("data/h3/h3_data.npy")
         R = H3_data[:, 0:3]; V = H3_data[:, 3]
@@ -961,10 +963,17 @@ if __name__=='__main__':
         sub_X = X[:100]
 
         num_basis = 59; max_deg = 5; num_atom = 3; e = 3; g = 6; # fixed parameters
-        C0 = np.random.uniform(-20, 20., 6*num_basis + 7) # non 8.4 ver
+
+        # random C:
+        #C0 = np.random.uniform(-20, 20., 6*num_basis + 7) # non 8.4 ver
         #C0 = np.random.uniform(-.1, .1, 6*num_basis + 9) # 8.4 ver, extra 2 tuning coeffs
         #C0[[1,2,5,6]] = [-.1,-.1,4,4] # (1,2,5,6) = (R_h, R_low, R_up, R_C)
 
+        # using pre-trained C:
+        C0 = np.loadtxt("c_params_100322.out")
+        # using scaling factor C0 := C0 x (hadamard) (1+c*(rand-0.5)), where rand is a vector with components uniformly distributed in [0,1] and c>0 is a constant chosen randomly in [0.2,5] or so:
+
+        start = time.time()
         # residual mode:
         res = least_squares(f_obj_leastsquares, C0, args=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g), verbose=2, method="trf")
         # scalar mode:
@@ -972,8 +981,8 @@ if __name__=='__main__':
         # 8.4 scalar mode:
         #res = minimize(f_obj_8_4, C0, args=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g), method="BFGS")
 
-        print(repr(res.x)) #print with commas
-        print(res.message)
+        elapsed = time.time()-start
+        #print(repr(res.x)) #print with commas
 
         # === RMSE: ===
         # standard obj mode:
@@ -983,13 +992,16 @@ if __name__=='__main__':
         #V_pred = f_pot_bond_wrapper_trpp(res.x[:-2], num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g)
         
         rmse = RMSE(V_pred, sub_V)
-        print("R_h, R_low, R_0, R_m, R_up, R_C", res.x[1:7])
-        print("pred, actual")
-        for i in range(V_pred.shape[0]):
-            print(V_pred[i], sub_V[i])
-        print("RMSE",rmse)
+
+        # save to file:
+        np.savetxt('c_params.out', res.x, delimiter=',')
+        print(np.loadtxt('c_params.out'))
+        print("time = ",elapsed)
+        print('final rmse', rmse)
 
     def multistart_test():
+        print("Multirestart opt mode!!")
+
         # load data and coordinates:
         H3_data = np.load("data/h3/h3_data.npy")
         R = H3_data[:, 0:3]; V = H3_data[:, 3]
@@ -1004,7 +1016,7 @@ if __name__=='__main__':
         indexer = atom_indexer(num_atom) 
         
         # multirestart:
-        resets = 100
+        resets = 30
         print("resets = ",resets)
         start = time.time()
         
@@ -1018,7 +1030,7 @@ if __name__=='__main__':
         '''
         #parallel ver:
         rmse, C = multistart_method_parallel(f_obj_leastsquares, f_pot_bond_wrapper_trpp, 
-                                    Y_test=sub_V, C_lb=-20., C_ub=20., C_size=6*num_basis+7, mode="leastsquares", max_nfev=2000,
+                                    Y_test=sub_V, C_lb=-20., C_ub=20., C_size=6*num_basis+7, mode="leastsquares", max_nfev=5000,
                                     resets=resets, verbose_multi=1, verbose_min=2,
                                     args_obj=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g),
                                     args_eval=(num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g))
@@ -1033,5 +1045,5 @@ if __name__=='__main__':
         
 
     #basis_function_tests()
-    #opt_test()
-    multistart_test()
+    opt_test()
+    #multistart_test()
