@@ -976,7 +976,7 @@ if __name__=='__main__':
 
         start = time.time()
         # residual mode:
-        res = least_squares(f_obj_leastsquares, C0, args=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g), verbose=2, method="trf")
+        res = least_squares(f_obj_leastsquares, C0, args=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g), verbose=2, method="lm")
         # scalar mode:
         #res = minimize(f_obj_standard, C0, args=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g), method="BFGS")
         # 8.4 scalar mode:
@@ -1032,7 +1032,7 @@ if __name__=='__main__':
         '''
         #parallel ver:
         rmse, C = multistart_method_parallel(f_obj_leastsquares, f_pot_bond_wrapper_trpp, 
-                                    Y_test=sub_V, C_lb=-20., C_ub=20., C_size=6*num_basis+7, mode="leastsquares", max_nfev=5000,
+                                    Y_test=sub_V, C_lb=-20., C_ub=20., C_size=6*num_basis+7, mode="leastsquares", method = 'lm', max_nfev=5000,
                                     resets=resets, verbose_multi=1, verbose_min=2,
                                     args_obj=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g),
                                     args_eval=(num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g))
@@ -1047,5 +1047,5 @@ if __name__=='__main__':
         
 
     #basis_function_tests()
-    opt_test()
-    #multistart_test()
+    #opt_test()
+    multistart_test()
