@@ -912,7 +912,7 @@ if __name__=='__main__':
 
     def opt_test():
         print("Single opt mode!")
-        
+
         # load data and coordinates:
         H3_data = np.load("data/h3/h3_data.npy")
         R = H3_data[:, 0:3]; V = H3_data[:, 3]
@@ -958,9 +958,10 @@ if __name__=='__main__':
 
         # === Optimize test: ===
         # get subset data:
-        sub_V = V[:100]
-        sub_R = R[:100]
-        sub_X = X[:100]
+        sub_V = V
+        sub_R = R
+        sub_X = X
+        print("data size = ", sub_V.shape[0])
 
         num_basis = 59; max_deg = 5; num_atom = 3; e = 3; g = 6; # fixed parameters
 
@@ -970,7 +971,7 @@ if __name__=='__main__':
         #C0[[1,2,5,6]] = [-.1,-.1,4,4] # (1,2,5,6) = (R_h, R_low, R_up, R_C)
 
         # using pre-trained C:
-        C0 = np.loadtxt("c_params_100322.out")
+        C0 = np.loadtxt("c_params_140322.out")
         # using scaling factor C0 := C0 x (hadamard) (1+c*(rand-0.5)), where rand is a vector with components uniformly distributed in [0,1] and c>0 is a constant chosen randomly in [0.2,5] or so:
 
         start = time.time()
@@ -1010,7 +1011,8 @@ if __name__=='__main__':
         sub_V = V[:100]
         sub_R = R[:100]
         sub_X = X[:100]
-        
+        print("data size = ", sub_V.shape[0])
+
         # fixed parameters:
         num_basis = 59; max_deg = 5; num_atom = 3; e = 3; g = 6;
         indexer = atom_indexer(num_atom) 
