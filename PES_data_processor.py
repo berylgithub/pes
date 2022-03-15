@@ -5,6 +5,7 @@ Created on Wed Oct 27 20:05:41 2021
 @author: Saint8312
 """
 
+
 '''Query routines'''
 def query_one_var(value, key, list_data):
     #to query data where data[key] = value
@@ -72,7 +73,29 @@ def data_conversion(R, V, R_unit="angstrom", V_unit="ev"):
             V *= 0.00038088
     return R, V
 
+'''cross validation utilities'''
+
+def cross_val(save_dir, num_data, n_split):
+    '''
+    split the data into n_splits for cross validation.
+    returns the indices of each split and save them to file (2D object array, [0] is the training indices, [1] is the testing indices)
+    params:
+        - save_dir, directory/folder, string
+        - num_data, number of data, integer
+        - n_split, indicates the number of splits, integer
+    '''
+    # only this function uses this
+    from sklearn.model_selection import KFold 
+    kf = KFold(n_splits=n_split, random_state=0, shuffle=True)
+    X = np.zeros((num_data)) # dummy data, just for indexing
+    i = 0
+    for train, test in kf.split(X):
+        print("%s %s" % (train, test))
+        np.save(save_dir+"crossval_indices_"+str(i), np.array([train, test], dtype=object))
+        i+=1
+
 if __name__ == "__main__":
+    import numpy as np
     def conv_pd_to_pkl():
         import pandas as pd
         import pickle
@@ -86,4 +109,7 @@ if __name__ == "__main__":
                 pickle.dump(data, handle)
                 
     '''======call functions from here (main is from here)========'''
-    conv_pd_to_pkl()
+    #conv_pd_to_pkl()
+    H3_data = np.load("data/h3/h3_data.npy")
+    cross_val("data/h3/", H3_data.shape[0], 5)
+    print(np.load("data/h3/crossval_indices_0.npy", allow_pickle=True)[1])
