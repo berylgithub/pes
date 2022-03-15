@@ -1008,9 +1008,10 @@ if __name__=='__main__':
         R = H3_data[:, 0:3]; V = H3_data[:, 3]
         X = np.load("data/h3/h3_coord.npy")
         # get subset:
-        sub_V = V[:100]
-        sub_R = R[:100]
-        sub_X = X[:100]
+        n = len(H3_data)
+        sub_V = V[:n]
+        sub_R = R[:n]
+        sub_X = X[:n]
         print("data size = ", sub_V.shape[0])
 
         # fixed parameters:
@@ -1018,7 +1019,7 @@ if __name__=='__main__':
         indexer = atom_indexer(num_atom) 
         
         # multirestart:
-        resets = 30
+        resets = 100
         print("resets = ",resets)
         start = time.time()
         
@@ -1046,6 +1047,97 @@ if __name__=='__main__':
         #print(repr(C))
         
 
+    def opt_routine(data_index_dir = None, pretrained_C = None, multirestart = False, parallel = False, resets = 100, 
+                    mode = "leastsquares", method = "lm", max_nfev = None, C_lb = -20., C_ub = 20., verbose_multi=1, verbose_min=2):
+        '''
+        main fun to wrap all things needed for opt, only cover the vars for data processing, just for convenience
+        '''
+
+        # load data and coordinates:
+        H3_data = np.load("data/h3/h3_data.npy")
+        R = H3_data[:, 0:3]; V = H3_data[:, 3]
+        X = np.load("data/h3/h3_coord.npy")
+        # get subset by index:
+        if data_index_dir == None:
+            # full data:
+            sub_V = V
+            sub_R = R
+            sub_X = X
+        else:
+            idx = np.load(data_index_dir, allow_pickle=True)
+            print("using crossval data splitting", idx[0].shape, idx[1].shape)
+            # data for training, which is used for opt:
+            sub_V = V[idx[0]]
+            sub_R = R[idx[0]]
+            sub_X = X[idx[0]]
+        print("data size =", sub_V.shape[0])
+
+        # fixed parameters:
+        num_basis = 59; max_deg = 5; num_atom = 3; e = 3; g = 6;
+        indexer = atom_indexer(num_atom)
+
+        # multirestart:
+        if multirestart:
+            print("Multirestart opt mode!!")
+            print("resets = ",resets)
+            start = time.time()
+            # parallelized ver:
+            if parallel:
+                rmse, C = multistart_method_parallel(f_obj_leastsquares, f_pot_bond_wrapper_trpp, 
+                                    Y_test=sub_V, C_lb=C_lb, C_ub=C_ub, C_size=6*num_basis+7, mode=mode, method = method, max_nfev=max_nfev,
+                                    resets=resets, verbose_multi=verbose_multi, verbose_min=verbose_min,
+                                    args_obj=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g),
+                                    args_eval=(num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g))
+            # singlecore ver:
+            else:
+                rmse, C = multistart_method(f_obj_leastsquares, f_pot_bond_wrapper_trpp, 
+                                    Y_test=sub_V, C_lb=C_lb, C_ub=C_ub, C_size=6*num_basis+7, mode=mode, method = method, max_nfev=max_nfev,
+                                    resets=resets, verbose_multi=verbose_multi, verbose_min=verbose_min,
+                                    args_obj=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g),
+                                    args_eval=(num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g))
+            elapsed = time.time()-start
+        # single local search:
+        else:
+            print("Single local search mode!!")
+            # pre-trained C:
+            if pretrained_C:
+                print("using pretrained C")
+                C0 = np.loadtxt(pretrained_C)
+            else:
+                print("init C using random uniform")
+                C0 = np.random.uniform(C_lb, C_ub, 6*num_basis + 7)
+
+            print("opt mode =",mode)
+            start = time.time()
+            if mode == "leastsquares":
+                res = least_squares(f_obj_leastsquares, C0, args=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g), verbose=verbose_min, method=method, max_nfev=max_nfev)
+            else:
+                res = minimize(f_obj_standard, C0, args=(f_pot_bond_wrapper_trpp, sub_V, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g), method=method)
+            elapsed = time.time()-start
+            C = res.x
+            # training rmse:
+            V_pred = f_pot_bond_wrapper_trpp(C, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g)
+            rmse = RMSE(V_pred, sub_V)
+
+
+        # save to file:
+        np.savetxt('c_params.out', C, delimiter=',')
+        print(np.loadtxt('c_params.out'))
+        print("time = ",elapsed)
+        print('training rmse', rmse)
+        # compute test rmse using test data:
+        if data_index_dir:
+            test_R = R[idx[1]]
+            test_X = X[idx[1]]
+            test_V = V[idx[1]]
+            V_pred = f_pot_bond_wrapper_trpp(C, num_basis, test_R, test_X, indexer, num_atom, max_deg, e, g)
+            rmse_test = RMSE(V_pred, test_V)
+            print('testing rmse', rmse_test)
+
+
+
     #basis_function_tests()
     #opt_test()
-    multistart_test()
+    #multistart_test()
+    opt_routine(data_index_dir="data/h3/crossval_indices_0.npy", pretrained_C="c_params_140322.out", multirestart=True, parallel=True, resets = 3, mode = "leastsquares",
+                method='trf', max_nfev=10)
