@@ -204,7 +204,7 @@ def delta_coord_matrix(X_mat):
                     dof_counter += 1
     return delta_coord_mat
         
-        
+@profile 
 def r_orient_vec(b_ijd_mat, delta_coord_matrix, coord_idx_mat):
     '''
     computes the r := (r[1], r[2],...), where r[i] := r_1[i], r_2[i],... ;
@@ -219,9 +219,10 @@ def r_orient_vec(b_ijd_mat, delta_coord_matrix, coord_idx_mat):
     # compute the matmul between b and delta:
     b_mult_delta = np.zeros((max_d, num_data, dof, num_elem)) # b*delta, shape = (d, num_data, dof, num_elem)
     # naive way:
-    for d in range(max_d):  # for each dimension:
-        for dat in range(num_data): # for each data:
-            for deg in range(dof): # for each degree of freedom:
+    iter_d = range(max_d); iter_num_data = range(num_data); iter_dof = range(dof) #ranges for loop
+    for d in iter_d:  # for each dimension:
+        for dat in iter_num_data: # for each data:
+            for deg in iter_dof: # for each degree of freedom:
                 b_mult_delta[d][dat][deg] = b_ijd_mat[d][dat][deg]*delta_coord_matrix[dat][deg] # b_ijd * delta_ji
     #print(b_mult_delta)
     #print(b_mult_delta.shape)
@@ -826,6 +827,7 @@ def multistart_method_parallel(F_obj, F_eval, Y_test,
     
     return min_RMSE, min_C
 
+
 if __name__=='__main__':
     '''unit tests:'''
     def basis_function_tests():
@@ -909,6 +911,7 @@ if __name__=='__main__':
         eps = epsilon_wrapper(phi, A1, A2, B1, B2, C1, C2)
         print("eps")
         print(eps)
+        
 
     def opt_test():
         print("Single opt mode!")
@@ -1139,5 +1142,27 @@ if __name__=='__main__':
     #basis_function_tests()
     #opt_test()
     #multistart_test()
-    opt_routine(data_index_dir="data/h3/crossval_indices_0.npy", pretrained_C="c_params_140322.out", multirestart=True, parallel=True, resets = 3, mode = "leastsquares",
-                method='trf', max_nfev=10)
+    #opt_routine(data_index_dir="data/h3/crossval_indices_0.npy", pretrained_C="c_params_140322.out", multirestart=True, parallel=True, resets = 3, mode = "leastsquares", method='trf', max_nfev=10)
+    
+    '''etc functions:'''
+    def testprofile():
+        # load data and coordinates:
+        H3_data = np.load("data/h3/h3_data.npy")
+        R = H3_data[:, 0:3]; V = H3_data[:, 3]
+        X = np.load("data/h3/h3_coord.npy")
+        sub_V = V
+        sub_R = R
+        sub_X = X
+        # fixed parameters:
+        num_basis = 59; max_deg = 5; num_atom = 3; e = 3; g = 6;
+
+        # indexer matrix:
+        indexer = atom_indexer(num_atom)
+
+        C0 = np.loadtxt("c_params_140322.out")
+
+        for i in range(int(10)):
+            V_pred = f_pot_bond_wrapper_trpp(C0, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g)
+
+    testprofile()
+
