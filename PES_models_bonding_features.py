@@ -193,18 +193,32 @@ def delta_coord_matrix(X_mat):
     num_data = X_mat.shape[0]; num_atoms = X_mat.shape[1]; num_elem = X_mat.shape[2]
     n = num_atoms
     dof = int(n*(n-1)/2) # degree of freedom
+    '''
+    # naive way:
     delta_coord_mat = np.zeros((num_data, dof, num_elem))
+    iter_atom = range(num_atoms)
     for d in range(num_data):
         # for each data, loop the atoms:
         dof_counter = 0
-        for i in range(num_atoms):
-            for j in range(num_atoms):
+        for i in iter_atom:
+            for j in iter_atom:
                 if i < j:
                     delta_coord_mat[d][dof_counter] = X_mat[d][j] - X_mat[d][i]
                     dof_counter += 1
+    '''
+    # more efficient way, omit data index:
+    delta_coord_mat = np.zeros((num_data, dof, 1, num_elem)) # add 1 index for numpy diff artefact
+    iter_atom = range(num_atoms)
+    dof_counter = 0
+    for i in iter_atom:
+        for j in iter_atom:
+            if i < j:
+                delta_coord_mat[:, dof_counter] = np.diff(X_mat[:, [i,j]], axis=1)
+                dof_counter += 1
+    delta_coord_mat = delta_coord_mat.reshape((num_data, dof, num_elem)) # reshape to the actual array indexes 
+    
     return delta_coord_mat
         
-@profile 
 def r_orient_vec(b_ijd_mat, delta_coord_matrix, coord_idx_mat):
     '''
     computes the r := (r[1], r[2],...), where r[i] := r_1[i], r_2[i],... ;
@@ -1173,6 +1187,7 @@ if __name__=='__main__':
 
         for i in range(int(10)):
             V_pred = f_pot_bond_wrapper_trpp(C0, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g)
+        print(V_pred)
 
     testprofile()
 
