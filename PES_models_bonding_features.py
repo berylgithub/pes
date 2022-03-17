@@ -217,6 +217,7 @@ def r_orient_vec(b_ijd_mat, delta_coord_matrix, coord_idx_mat):
     num_atom = coord_idx_mat.shape[0]; max_d = b_ijd_mat.shape[0]; num_data = delta_coord_matrix.shape[0]; 
     dof = delta_coord_matrix.shape[1]; num_elem = delta_coord_matrix.shape[2];
     # compute the matmul between b and delta:
+    '''
     b_mult_delta = np.zeros((max_d, num_data, dof, num_elem)) # b*delta, shape = (d, num_data, dof, num_elem)
     # naive way:
     iter_d = range(max_d); iter_num_data = range(num_data); iter_dof = range(dof) #ranges for loop
@@ -224,6 +225,15 @@ def r_orient_vec(b_ijd_mat, delta_coord_matrix, coord_idx_mat):
         for dat in iter_num_data: # for each data:
             for deg in iter_dof: # for each degree of freedom:
                 b_mult_delta[d][dat][deg] = b_ijd_mat[d][dat][deg]*delta_coord_matrix[dat][deg] # b_ijd * delta_ji
+    '''
+    # more efficient way, rearranging the last index vector to the front for the delta array and 2nd index for the result array:
+    b_mult_delta = np.zeros((max_d, num_elem, num_data, dof)) # temporarily put the 3d cartesian vector index at 2nd pos
+    delta_coord_matrix = np.transpose(delta_coord_matrix, (2,0,1)) # put the cartesian index to the front
+    iter_d = range(max_d)
+    for d in iter_d:
+        b_mult_delta[d] = b_ijd_mat[d]*delta_coord_matrix #b_ijd * delta_ji
+    b_mult_delta = np.transpose(b_mult_delta, (0,2,3,1)) # rearrange the indexes to (d, num_data, dof, num_elem)
+    
     #print(b_mult_delta)
     #print(b_mult_delta.shape)
     # compute the sum, same way with Y:
