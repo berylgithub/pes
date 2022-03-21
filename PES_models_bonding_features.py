@@ -53,6 +53,8 @@ def s_bond_strength(R, R_up, R_low, t, t0):
     elif R_up < R:
         return 0
 
+s_bond_strength_vec = np.vectorize(s_bond_strength) # vectorized switch fun
+
 # Tchebyshev polynomials functions:
 s_prime_fun = lambda s: 2-4*s
 def p_tchebyshev_pol(deg, s, s_prime):
@@ -73,7 +75,7 @@ def p_tchebyshev_pol(deg, s, s_prime):
         return s_prime*p_tchebyshev_pol(deg-1, s, s_prime) - p_tchebyshev_pol(deg-2, s, s_prime)
 
 # reference energy U:
-def U_ref_energy(V_fun, R):
+def U_ref_energy_wrapper(V_fun, R):
     '''
     params:
         - V_fun := function for reference energy
@@ -109,11 +111,16 @@ def gen_bijd_mat(R_mat, max_deg, n_atom, R_up, R_m, R_low, e):
     t0 = t_R_fun(R_m, R_up, R_low, e) # const 
     t_mat = t_R_fun(R_mat, R_up, R_low, e) # matrix (len(R) x n_atom)
     s_mat = np.zeros(R_mat.shape) # matrix (len(R) x n_atom)
-    # need to check the each element one by one due to bool op:
+    '''
+    # slow ver, need to check the each element one by one due to bool op:
     for i in range(R_mat.shape[0]):
         for j in range(R_mat.shape[1]):
             s_mat[i][j] = s_bond_strength(R_mat[i][j], R_up, R_low, t_mat[i][j], t0)
     #print(s_mat)
+    '''
+    # faster:
+    s_mat = s_bond_strength_vec(R_mat, R_up, R_low, t_mat, t0)
+    
     s_prime_mat = s_prime_fun(s_mat)
     b_ijd_mat = np.array([p_tchebyshev_pol(deg, s_mat, s_prime_mat) for deg in range(1, max_deg+1)]) # tensor (max_deg, len(R), n_atom)
     return b_ijd_mat
@@ -321,7 +328,8 @@ def V_ref_pairpot(R, C, R_h, R_C, R_0, g):
     else:
         return 0
 
-    
+V_ref_pairpot_vec = np.vectorize(V_ref_pairpot)
+ 
 def U_ref_energy(R_mat, C, R_h, R_C, R_0, g, indexer):
     '''
     computes the reference energy matrix, U[i] = \sum V_ij, shape = (num_atom, num_data)
@@ -333,11 +341,15 @@ def U_ref_energy(R_mat, C, R_h, R_C, R_0, g, indexer):
     num_data = R_mat.shape[0]; dof = R_mat.shape[1]; num_atom = indexer.shape[0]
     Vref = np.zeros((num_data, dof))
     U = np.zeros((num_atom, num_data))
-    # transposed order:
+    '''
+    # slow, transposed order:
     for i in range(num_data):
         for j in range(dof):
             Vref[i][j] = V_ref_pairpot(R_mat[i][j], C, R_h, R_C, R_0, g)
     #print(Vref)
+    '''
+    # faster:
+    Vref = V_ref_pairpot_vec(R_mat, C, R_h, R_C, R_0, g)
     for i, coord in enumerate(indexer):
         U[i] = np.sum(Vref[:, coord], axis=1)
     return U
@@ -511,23 +523,24 @@ def f_pot_bond(C, R_h, R_low, R_0, R_m, R_up, R_C, A1, A2, B1, B2, C1, C2, R, X,
     # compute U basis, contains tuning params (C, R_h, R_C, R_0):
     #print("C, R_h, R_C, R_0", C, R_h, R_C, R_0)
     U = U_ref_energy(R, C, R_h, R_C, R_0, g, indexer)
-    #print('U')
+    #print('U', U.shape)
     #print(U)
     
     # compute Y basis, contains tuning params (R_up, R_m, R_low):
     b = gen_bijd_mat(R, max_deg, num_atom, R_up, R_m, R_low, e)
     Y = Y_coord_mat(b, indexer)
-    #print("b")
+    #print("Y", Y.shape)
     #print(b)
     
     # compute G basis:
     delta = delta_coord_matrix(X)
     r = r_orient_vec(b, delta, indexer)
     G = G_gram_mat(r)
+    #print('G', G.shape)
     
     # compute phi matrix:
     phi = phi_fun(U, Y, G)
-    #print('phi')
+    #print('phi', phi.shape)
     #print(phi)
     
     # compute the energy, contains tuning params (A1, A2, B1, B2, C1, C2):
@@ -1183,11 +1196,19 @@ if __name__=='__main__':
         # indexer matrix:
         indexer = atom_indexer(num_atom)
 
-        C0 = np.loadtxt("c_params_140322.out")
+        C0 = np.loadtxt("c_params_150322_fulldata.out")
 
-        for i in range(int(10)):
-            V_pred = f_pot_bond_wrapper_trpp(C0, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g)
+        start = time.time()
+        #for i in range(int(10)):
+        V_pred = f_pot_bond_wrapper_trpp(C0, num_basis, sub_R, sub_X, indexer, num_atom, max_deg, e, g)
         print(V_pred)
-
+        print(time.time()-start,"s")
+        
+        # RMSE:
+        rmse = RMSE(V_pred, sub_V)
+        print('rmse', rmse)
+        
+    
+    '''==== callers: ==='''
     testprofile()
-
+    
