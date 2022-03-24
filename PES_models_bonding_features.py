@@ -317,7 +317,8 @@ def G_gram_mat(r_mat):
                 print(r_mat[i][d2])
                 print(np.sum(r_mat[i][d1]*r_mat[i][d2], axis=-1))
                 '''
-                G_mat[i] = np.sum(r_mat[i][d1]*r_mat[i][d2], axis=-1) # r_d1[i]*r_d2[i] 
+                #G_mat[i] = np.sum(r_mat[i][d1]*r_mat[i][d2], axis=-1) # r_d1[i]*r_d2[i] 
+                G_mat[i][d1][d2] = np.sum(r_mat[i][d1]*r_mat[i][d2], axis=-1) # r_d1[i]*r_d2[i] 
     return G_mat
 
 
