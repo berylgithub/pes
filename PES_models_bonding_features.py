@@ -46,13 +46,24 @@ def s_bond_strength(R, R_up, R_low, t, t0):
     if R_m = R and R_low < R_m < R_up, then bond_strength_s = 0.5
     trainable parameters: (R_low, R_m, R_up)
     '''
+    '''
     if R < R_low:
         return 1
     elif R_low <= R <= R_up:
         return t0/(t+t0)
     elif R_up < R:
         return 0
-
+    '''
+    low_idx = np.where(R < R_low)
+    mid_idx = np.where((R_low <= R) & (R <= R_up))
+    up_idx = np.where(R > R_up)
+    R[low_idx] = 1. # low
+    R[up_idx] = 0. # up
+    t_mid = t[mid_idx]
+    R[mid_idx] = t0/(t_mid+t0) # mid cond
+    return R
+    
+    
 s_bond_strength_vec = np.vectorize(s_bond_strength) # vectorized switch fun
 
 # Tchebyshev polynomials functions:
@@ -83,6 +94,7 @@ def U_ref_energy_wrapper(V_fun, R):
     '''
     return V_fun(R)
 
+@profile
 # coordination vector Y_d[i]:
 def gen_bijd_mat(R_mat, max_deg, n_atom, R_up, R_m, R_low, e):
     '''
@@ -119,8 +131,9 @@ def gen_bijd_mat(R_mat, max_deg, n_atom, R_up, R_m, R_low, e):
     #print(s_mat)
     '''
     # faster:
-    s_mat = s_bond_strength_vec(R_mat, R_up, R_low, t_mat, t0)
-    
+    #s_mat = s_bond_strength_vec(R_mat, R_up, R_low, t_mat, t0)
+    s_mat = s_bond_strength(R_mat, R_up, R_low, t_mat, t0)
+    print(s_mat)
     s_prime_mat = s_prime_fun(s_mat)
     b_ijd_mat = np.array([p_tchebyshev_pol(deg, s_mat, s_prime_mat) for deg in range(1, max_deg+1)]) # tensor (max_deg, len(R), n_atom)
     return b_ijd_mat
@@ -318,8 +331,9 @@ def V_ref_pairpot(R, C, R_h, R_C, R_0, g):
     params:
         - R = distance, must be a scalar (due to comparison check)
         - C, R_h, R_C, R_0, g; scalar constants
-        
     '''
+    '''
+    # slow:
     if R <= R_h:
         return np.inf
     elif R_h < R <= R_C:
@@ -327,6 +341,19 @@ def V_ref_pairpot(R, C, R_h, R_C, R_0, g):
         return -C*(R_C**2 - R2)**g*( (R2 - R_0**2)/(R2 - R_h**2) )
     else:
         return 0
+    '''
+    # should be faster:
+    low_idx = np.where(R <= R_h)
+    mid_idx = np.where((R_h < R) & (R <= R_C))
+    up_idx = np.where(R > R_C)
+    R[low_idx] = np.inf # low
+    R[up_idx] = 0. # up
+    R_mid = R[mid_idx]
+    R2 = R_mid**2
+    R_mid = -C*(R_C**2 - R2)**g*( (R2 - R_0**2)/(R2 - R_h**2) ) # mid cond
+    R[mid_idx] = R_mid
+    return R
+    
 
 V_ref_pairpot_vec = np.vectorize(V_ref_pairpot)
  
@@ -349,7 +376,8 @@ def U_ref_energy(R_mat, C, R_h, R_C, R_0, g, indexer):
     #print(Vref)
     '''
     # faster:
-    Vref = V_ref_pairpot_vec(R_mat, C, R_h, R_C, R_0, g)
+    #Vref = V_ref_pairpot_vec(R_mat, C, R_h, R_C, R_0, g)
+    Vref = V_ref_pairpot(R_mat, C, R_h, R_C, R_0, g)
     for i, coord in enumerate(indexer):
         U[i] = np.sum(Vref[:, coord], axis=1)
     return U
@@ -506,6 +534,7 @@ def epsilon_wrapper(phi, A1, A2, B1, B2, C1, C2):
 '''====== Functional calculators ======'''
 # num params = 59*6 + 7
 # tuning params: C, R_h, R_low, R_0, R_m, R_up, R_C = scalar; A1, A2, B1, B2, C1, C2 = num_basis
+@profile
 def f_pot_bond(C, R_h, R_low, R_0, R_m, R_up, R_C, A1, A2, B1, B2, C1, C2, R, X, indexer, num_atom, max_deg, e, g=6):
     '''
     computes the energy, shape = (num_data)
@@ -1186,6 +1215,7 @@ if __name__=='__main__':
         # load data and coordinates:
         H3_data = np.load("data/h3/h3_data.npy")
         R = H3_data[:, 0:3]; V = H3_data[:, 3]
+        print(R.dtype)
         X = np.load("data/h3/h3_coord.npy")
         sub_V = V
         sub_R = R
@@ -1196,7 +1226,7 @@ if __name__=='__main__':
         # indexer matrix:
         indexer = atom_indexer(num_atom)
 
-        C0 = np.loadtxt("c_params_150322_fulldata.out")
+        C0 = np.loadtxt("c_params_220322_full_fold1_5e-2.out")
 
         start = time.time()
         #for i in range(int(10)):
