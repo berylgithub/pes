@@ -94,7 +94,6 @@ def U_ref_energy_wrapper(V_fun, R):
     '''
     return V_fun(R)
 
-@profile
 # coordination vector Y_d[i]:
 def gen_bijd_mat(R_mat, max_deg, n_atom, R_up, R_m, R_low, e):
     '''
@@ -318,7 +317,12 @@ def G_gram_mat(r_mat):
                 print(np.sum(r_mat[i][d1]*r_mat[i][d2], axis=-1))
                 '''
                 #G_mat[i] = np.sum(r_mat[i][d1]*r_mat[i][d2], axis=-1) # r_d1[i]*r_d2[i] 
-                G_mat[i][d1][d2] = np.sum(r_mat[i][d1]*r_mat[i][d2], axis=-1) # r_d1[i]*r_d2[i] 
+                #G_mat[i][d1][d2] = np.sum(r_mat[i][d1]*r_mat[i][d2], axis=-1) # r_d1[i]*r_d2[i] 
+                # this is only n(n-1)/2 d operations instead of n^2:
+                if d1 <= d2:
+                    G_mat[i][d1][d2] = np.sum(r_mat[i][d1]*r_mat[i][d2], axis=-1)
+                else: 
+                    G_mat[i][d1][d2] = G_mat[i][d2][d1]
     return G_mat
 
 
