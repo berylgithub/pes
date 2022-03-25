@@ -54,6 +54,7 @@ def s_bond_strength(R, R_up, R_low, t, t0):
     elif R_up < R:
         return 0
     '''
+    '''
     low_idx = np.where(R < R_low)
     mid_idx = np.where((R_low <= R) & (R <= R_up))
     up_idx = np.where(R > R_up)
@@ -62,6 +63,14 @@ def s_bond_strength(R, R_up, R_low, t, t0):
     t_mid = t[mid_idx]
     R[mid_idx] = t0/(t_mid+t0) # mid cond
     return R
+    '''
+    s = np.zeros(R.shape)
+    low_idx = (R < R_low) 
+    mid_idx = (R <= R_up) & ~low_idx #~low_idx := R_low <= R
+    s[low_idx] = 1. # low
+    t_mid = t[mid_idx]
+    s[mid_idx] = t0/(t_mid+t0) # mid cond
+    return s
     
     
 s_bond_strength_vec = np.vectorize(s_bond_strength) # vectorized switch fun
@@ -95,6 +104,7 @@ def U_ref_energy_wrapper(V_fun, R):
     return V_fun(R)
 
 # coordination vector Y_d[i]:
+@profile
 def gen_bijd_mat(R_mat, max_deg, n_atom, R_up, R_m, R_low, e):
     '''
     b_ijd matrix generator \in R^{d x degree of freedom of atom i},
@@ -329,8 +339,7 @@ def G_gram_mat(r_mat):
 # Neigborhood matrices Theta:
 
 '''==== 8.2 Bonding potential with trainable reference pairpot ===='''
-# will be changed to np.where version to allow vectorization if possible:
-@profile
+
 def V_ref_pairpot(R, C, R_h, R_C, R_0, g):
     '''
     returns energy, reference potential
@@ -361,15 +370,15 @@ def V_ref_pairpot(R, C, R_h, R_C, R_0, g):
     R[mid_idx] = R_mid
     return R
     '''
-    R_ret = np.zeros(R.shape)
+    Vref = np.zeros(R.shape)
     low_idx = (R <= R_h)
     mid_idx = (R <= R_C) & ~low_idx
-    R_ret[low_idx] = np.inf # low
+    Vref[low_idx] = np.inf # low
     R_mid = R[mid_idx] # mid
     R2 = R_mid**2
     R_mid = -C*(R_C**2 - R2)**g*( (R2 - R_0**2)/(R2 - R_h**2) ) # mid cond
-    R_ret[mid_idx] = R_mid
-    return R_ret
+    Vref[mid_idx] = R_mid
+    return Vref
     
     
 
@@ -553,7 +562,6 @@ def epsilon_wrapper(phi, A1, A2, B1, B2, C1, C2):
 '''====== Functional calculators ======'''
 # num params = 59*6 + 7
 # tuning params: C, R_h, R_low, R_0, R_m, R_up, R_C = scalar; A1, A2, B1, B2, C1, C2 = num_basis
-
 def f_pot_bond(C, R_h, R_low, R_0, R_m, R_up, R_C, A1, A2, B1, B2, C1, C2, R, X, indexer, num_atom, max_deg, e, g=6):
     '''
     computes the energy, shape = (num_data)
