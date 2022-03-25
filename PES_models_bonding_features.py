@@ -26,7 +26,8 @@ import multiprocessing
 
 '''====== Utilities ======'''
 tsqrt = lambda x: np.sqrt(x) if x >= 0 else 0 #truncated sqrt
-tlog = lambda x: np.log(x) if x > 0 else np.log(sys.float_info.min) #truncated log 
+#tlog = lambda x: np.log(x) if x > 0 else np.log(sys.float_info.min) #truncated log 
+tlog = lambda x: np.log(np.max((0.1, x))) #truncated log 
 
 # rmse:
 def RMSE(Y, Y_pred):
@@ -538,7 +539,6 @@ def epsilon_i_term(A_i, B_i, C_i):
     #print(A_i, B_i, C_i, epsilon_i)
     return epsilon_i
 
-@profile
 #def epsilon_wrapper(phi, A1, A2, B1, B2, C1, C2):
 def epsilon_wrapper(phi, W_mat):
     '''
@@ -584,7 +584,6 @@ def epsilon_wrapper(phi, W_mat):
 # tuning params: C, R_h, R_low, R_0, R_m, R_up, R_C = scalar; A1, A2, B1, B2, C1, C2 = num_basis
 
 #def f_pot_bond(C, R_h, R_low, R_0, R_m, R_up, R_C, A1, A2, B1, B2, C1, C2, R, X, indexer, num_atom, max_deg, e, g=6):
-@profile
 def f_pot_bond(C, R_h, R_low, R_0, R_m, R_up, R_C, W_mat, R, X, indexer, num_atom, max_deg, e, g=6):
     '''
     computes the energy, shape = (num_data)
@@ -1198,9 +1197,9 @@ if __name__=='__main__':
         # get subset by index:
         if data_index_dir == None:
             # full data:
-            sub_V = V
-            sub_R = R
-            sub_X = X
+            sub_V = V[:100]
+            sub_R = R[:100]
+            sub_X = X[:100]
         else:
             idx = np.load(data_index_dir, allow_pickle=True)
             print("using crossval data splitting", idx[0].shape, idx[1].shape)
@@ -1271,13 +1270,6 @@ if __name__=='__main__':
             V_pred = f_pot_bond_wrapper_trpp(C, num_basis, test_R, test_X, indexer, num_atom, max_deg, e, g)
             rmse_test = RMSE(V_pred, test_V)
             print('testing rmse', rmse_test)
-
-
-
-    #basis_function_tests()
-    #opt_test()
-    #multistart_test()
-    #opt_routine(data_index_dir="data/h3/crossval_indices_0.npy", pretrained_C="c_params_140322.out", multirestart=True, parallel=True, resets = 3, mode = "leastsquares", method='trf', max_nfev=10)
     
     '''etc functions:'''
     def testprofile():
@@ -1308,5 +1300,9 @@ if __name__=='__main__':
         
     
     '''==== callers: ==='''
-    testprofile()
+    #basis_function_tests()
+    #opt_test()
+    #multistart_test()
+    opt_routine(C_lb = -20., C_ub = 20., verbose_multi=1, verbose_min=2, multirestart=True, parallel=False, resets = 2, mode = "leastsquares", method='trf', max_nfev=5000)
+    #testprofile()
     
