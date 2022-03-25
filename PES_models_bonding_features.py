@@ -132,7 +132,7 @@ def gen_bijd_mat(R_mat, max_deg, n_atom, R_up, R_m, R_low, e):
     # faster:
     #s_mat = s_bond_strength_vec(R_mat, R_up, R_low, t_mat, t0)
     s_mat = s_bond_strength(R_mat, R_up, R_low, t_mat, t0)
-    print(s_mat)
+    #print(s_mat)
     s_prime_mat = s_prime_fun(s_mat)
     b_ijd_mat = np.array([p_tchebyshev_pol(deg, s_mat, s_prime_mat) for deg in range(1, max_deg+1)]) # tensor (max_deg, len(R), n_atom)
     return b_ijd_mat
@@ -330,6 +330,7 @@ def G_gram_mat(r_mat):
 
 '''==== 8.2 Bonding potential with trainable reference pairpot ===='''
 # will be changed to np.where version to allow vectorization if possible:
+@profile
 def V_ref_pairpot(R, C, R_h, R_C, R_0, g):
     '''
     returns energy, reference potential
@@ -347,17 +348,29 @@ def V_ref_pairpot(R, C, R_h, R_C, R_0, g):
     else:
         return 0
     '''
+    '''
     # should be faster:
     low_idx = np.where(R <= R_h)
     mid_idx = np.where((R_h < R) & (R <= R_C))
     up_idx = np.where(R > R_C)
-    R[low_idx] = np.inf # low
     R[up_idx] = 0. # up
+    R[low_idx] = np.inf # low
     R_mid = R[mid_idx]
     R2 = R_mid**2
     R_mid = -C*(R_C**2 - R2)**g*( (R2 - R_0**2)/(R2 - R_h**2) ) # mid cond
     R[mid_idx] = R_mid
     return R
+    '''
+    R_ret = np.zeros(R.shape)
+    low_idx = (R <= R_h)
+    mid_idx = (R <= R_C) & ~low_idx
+    R_ret[low_idx] = np.inf # low
+    R_mid = R[mid_idx] # mid
+    R2 = R_mid**2
+    R_mid = -C*(R_C**2 - R2)**g*( (R2 - R_0**2)/(R2 - R_h**2) ) # mid cond
+    R_ret[mid_idx] = R_mid
+    return R_ret
+    
     
 
 V_ref_pairpot_vec = np.vectorize(V_ref_pairpot)
@@ -383,6 +396,7 @@ def U_ref_energy(R_mat, C, R_h, R_C, R_0, g, indexer):
     # faster:
     #Vref = V_ref_pairpot_vec(R_mat, C, R_h, R_C, R_0, g)
     Vref = V_ref_pairpot(R_mat, C, R_h, R_C, R_0, g)
+    
     for i, coord in enumerate(indexer):
         U[i] = np.sum(Vref[:, coord], axis=1)
     return U
@@ -515,7 +529,7 @@ def epsilon_i_term(A_i, B_i, C_i):
     epsilon_i = A_i - np.sqrt(B_i + C_i)
     #print(A_i, B_i, C_i, epsilon_i)
     return epsilon_i
-
+    
 def epsilon_wrapper(phi, A1, A2, B1, B2, C1, C2):
     '''
     computes the \epsilon_0 in eq.(62) from all of the partial energy terms # pg 61
@@ -539,7 +553,7 @@ def epsilon_wrapper(phi, A1, A2, B1, B2, C1, C2):
 '''====== Functional calculators ======'''
 # num params = 59*6 + 7
 # tuning params: C, R_h, R_low, R_0, R_m, R_up, R_C = scalar; A1, A2, B1, B2, C1, C2 = num_basis
-@profile
+
 def f_pot_bond(C, R_h, R_low, R_0, R_m, R_up, R_C, A1, A2, B1, B2, C1, C2, R, X, indexer, num_atom, max_deg, e, g=6):
     '''
     computes the energy, shape = (num_data)
