@@ -104,7 +104,6 @@ def U_ref_energy_wrapper(V_fun, R):
     return V_fun(R)
 
 # coordination vector Y_d[i]:
-@profile
 def gen_bijd_mat(R_mat, max_deg, n_atom, R_up, R_m, R_low, e):
     '''
     b_ijd matrix generator \in R^{d x degree of freedom of atom i},
@@ -538,36 +537,61 @@ def epsilon_i_term(A_i, B_i, C_i):
     epsilon_i = A_i - np.sqrt(B_i + C_i)
     #print(A_i, B_i, C_i, epsilon_i)
     return epsilon_i
-    
-def epsilon_wrapper(phi, A1, A2, B1, B2, C1, C2):
+
+@profile
+#def epsilon_wrapper(phi, A1, A2, B1, B2, C1, C2):
+def epsilon_wrapper(phi, W_mat):
     '''
     computes the \epsilon_0 in eq.(62) from all of the partial energy terms # pg 61
     params:
         - phi = matrix of basis functions, shape = (num_atom, num_basis, num_data)
-        - A1, A2, B1, B2, C1, C2 = vectors of tuning parameters, shape = num_basis
+        # - A1, A2, B1, B2, C1, C2 = vectors of tuning parameters, shape = num_basis
+        - W_mat, weight matrix, shape = (6, num_basis)
     '''
     num_atom = phi.shape[0]
     
+    '''
     A = np.array([A_i_term(A1, A2, phi, i) for i in range(num_atom)]) # A term, shape = (num_atom, num_data)
     B = np.array([T0_i_term(B1, B2, phi, i) for i in range(num_atom)]) # B term
     C = np.array([T0_i_term(C1, C2, phi, i) for i in range(num_atom)]) # C term
-    
-    
     epsilon = 0
     for i in range(num_atom):
         epsilon += epsilon_i_term(A[i], B[i], C[i]) # \sum \epsilon_0[i]
     return epsilon
+    '''
+    # partial energy terms, shape = (num_atom, num_data)
+    # A term, column [0,1]:
+    A = np.matmul(W_mat[:2], phi)
+    A = A.transpose(1,0,2) # move numerator and denominator to inner axis
+    A = A[0]/(A[1]**2 + 1)
 
+    # B, C, column [2,3],[4,5]:
+    B = np.matmul(W_mat[2:4], phi)
+    B = B.transpose(1,0,2)
+    B = B[0]**2/(B[1]**2 + 1)
+    C = np.matmul(W_mat[4:6], phi)
+    C = C.transpose(1,0,2)
+    C = C[0]**2/(C[1]**2 + 1)
+
+    epsilon = 0
+    for i in range(num_atom):
+        epsilon += epsilon_i_term(A[i], B[i], C[i]) # \sum \epsilon_0[i]
+    return epsilon
+    
 
 '''====== Functional calculators ======'''
 # num params = 59*6 + 7
 # tuning params: C, R_h, R_low, R_0, R_m, R_up, R_C = scalar; A1, A2, B1, B2, C1, C2 = num_basis
-def f_pot_bond(C, R_h, R_low, R_0, R_m, R_up, R_C, A1, A2, B1, B2, C1, C2, R, X, indexer, num_atom, max_deg, e, g=6):
+
+#def f_pot_bond(C, R_h, R_low, R_0, R_m, R_up, R_C, A1, A2, B1, B2, C1, C2, R, X, indexer, num_atom, max_deg, e, g=6):
+@profile
+def f_pot_bond(C, R_h, R_low, R_0, R_m, R_up, R_C, W_mat, R, X, indexer, num_atom, max_deg, e, g=6):
     '''
     computes the energy, shape = (num_data)
     params: 
         - C, R_h, R_low, R_0, R_m, R_up, R_C; scalar || TUNING PARAMS
-        - A1, A2, B1, B2, C1, C2; shape = num_basis || TUNING PARAMS
+        # - A1, A2, B1, B2, C1, C2; shape = num_basis || TUNING PARAMS
+        - W_mat, weight matrix, shape = (6, num_basis), axis[0] = 6 because in the model there are 6 factors || TUNING PARAMS
         - R: distance matrix, shape = (num_data, dof)
         - X: coordinate matrix, shape = (num_data, num_atom, 3)
         - indexer = matrix of atomic indexer, shape = (num_atom, num_atom-1)
@@ -600,7 +624,8 @@ def f_pot_bond(C, R_h, R_low, R_0, R_m, R_up, R_C, A1, A2, B1, B2, C1, C2, R, X,
     #print(phi)
     
     # compute the energy, contains tuning params (A1, A2, B1, B2, C1, C2):
-    V = epsilon_wrapper(phi, A1, A2, B1, B2, C1, C2)
+    #V = epsilon_wrapper(phi, A1, A2, B1, B2, C1, C2)
+    V = epsilon_wrapper(phi, W_mat)
     return V
 
 def f_pot_bond_wrapper(coeffs, *args):
@@ -708,6 +733,7 @@ def f_pot_bond_wrapper_trpp(coeffs, *args):
     e = args[6]
     g = args[7]
     
+    '''
     # unroll coefficients:
     #C = coeffs[0]; R_h = coeffs[1]; R_low = coeffs[2]; R_0 = coeffs[3]; R_m = coeffs[4]; R_up = coeffs[5]; R_C = coeffs[6];
     A1 = coeffs[7: num_basis+7]
@@ -729,7 +755,23 @@ def f_pot_bond_wrapper_trpp(coeffs, *args):
     V_pred = f_pot_bond(pi[0], pi[1], pi[2], pi[3], pi[4], pi[5], pi[6], 
                         A1, A2, B1, B2, C1, C2, 
                         R, X, indexer, num_atom, max_deg, e, g)
+    '''
+
+    # unroll coefficients:
+    #C = coeffs[0]; R_h = coeffs[1]; R_low = coeffs[2]; R_0 = coeffs[3]; R_m = coeffs[4]; R_up = coeffs[5]; R_C = coeffs[6];
+    W_mat = coeffs[7: 6*num_basis+7] # weight matrix
+    W_mat = W_mat.reshape(6, num_basis) # 6 axis 0 because 6 vectors
     
+    # the coeff input is rho = (np.log(C)/20, np.log(R_h)/20, np.sqrt(R_low), np.sqrt(R_0-R_low), np.sqrt(R_m-R_0), np.sqrt(R_up-R_m), np.sqrt(R_C-R_up))
+    pi = eq_68_converter(coeffs[0:7]) # computes rho
+    pi = eq_68_inverter(pi) # compute the pi := inverse of rho
+    #print("initcoeffs", coeffs[0:7])
+    #print("pi", pi)
+    V_pred = f_pot_bond(pi[0], pi[1], pi[2], pi[3], pi[4], pi[5], pi[6], 
+                        W_mat, 
+                        R, X, indexer, num_atom, max_deg, e, g)
+    
+
     return V_pred
 
 '''=== Objective functions ==='''
@@ -1242,7 +1284,6 @@ if __name__=='__main__':
         # load data and coordinates:
         H3_data = np.load("data/h3/h3_data.npy")
         R = H3_data[:, 0:3]; V = H3_data[:, 3]
-        print(R.dtype)
         X = np.load("data/h3/h3_coord.npy")
         sub_V = V
         sub_R = R
