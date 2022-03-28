@@ -25,14 +25,19 @@ import warnings, sys
 import multiprocessing
 
 '''====== Utilities ======'''
-tsqrt = lambda x: np.sqrt(x) if x >= 0 else 0 #truncated sqrt
+#tsqrt = lambda x: np.sqrt(x) if x >= 0 else 0 #truncated sqrt
 #tlog = lambda x: np.log(x) if x > 0 else np.log(sys.float_info.min) #truncated log 
+tsqrt = lambda x: np.sqrt(x) if x > 0 else np.sqrt(1e-6) #truncated sqrt
 tlog = lambda x: np.log(np.max((0.1, x))) #truncated log 
 
 # rmse:
 def RMSE(Y, Y_pred):
     N = Y.shape[0]
     return np.sqrt(np.sum((Y-Y_pred)**2)/N)
+
+'''==== pairpot funs ==== '''
+
+
 
 '''====== The fundamentals: 8.1 Bonding features ======'''
 # bond strength:
@@ -144,6 +149,7 @@ def gen_bijd_mat(R_mat, max_deg, n_atom, R_up, R_m, R_low, e):
     s_mat = s_bond_strength(R_mat, R_up, R_low, t_mat, t0)
     #print(s_mat)
     s_prime_mat = s_prime_fun(s_mat)
+    #print(s_prime_mat)
     b_ijd_mat = np.array([p_tchebyshev_pol(deg, s_mat, s_prime_mat) for deg in range(1, max_deg+1)]) # tensor (max_deg, len(R), n_atom)
     return b_ijd_mat
         
@@ -486,7 +492,11 @@ def phi_fun(U, Y, G):
     phi[:, 56] = G[:, 0,0]*G[:, 0,1]
     phi[:, 57] = G[:, 0,3]
     phi[:, 58] = G[:, 1,2]
-
+    
+    # scales phi by dividing it with <phi_k> := \sqrt(\sum_i \phi_k[i]**2/N):
+    exp_phi = np.sqrt(np.sum(phi**2, axis=0)/phi.shape[0])
+    phi = phi/exp_phi
+    
     return phi
 
 # energy models:
@@ -558,7 +568,7 @@ def epsilon_wrapper(phi, W_mat):
     for i in range(num_atom):
         epsilon += epsilon_i_term(A[i], B[i], C[i]) # \sum \epsilon_0[i]
     return epsilon
-    '''
+    '''    
     # partial energy terms, shape = (num_atom, num_data)
     # A term, column [0,1]:
     A = np.matmul(W_mat[:2], phi)
@@ -572,7 +582,8 @@ def epsilon_wrapper(phi, W_mat):
     C = np.matmul(W_mat[4:6], phi)
     C = C.transpose(1,0,2)
     C = C[0]**2/(C[1]**2 + 1)
-
+    
+    
     epsilon = 0
     for i in range(num_atom):
         epsilon += epsilon_i_term(A[i], B[i], C[i]) # \sum \epsilon_0[i]
@@ -1281,7 +1292,7 @@ if __name__=='__main__':
         sub_R = R
         sub_X = X
         # fixed parameters:
-        num_basis = 59; max_deg = 5; num_atom = 3; e = 3; g = 6;
+        num_basis = 59; max_deg = 5; num_atom = 3; e = 2.5; g = 6;
 
         # indexer matrix:
         indexer = atom_indexer(num_atom)
@@ -1303,6 +1314,6 @@ if __name__=='__main__':
     #basis_function_tests()
     #opt_test()
     #multistart_test()
-    opt_routine(C_lb = -20., C_ub = 20., verbose_multi=1, verbose_min=2, multirestart=True, parallel=False, resets = 2, mode = "leastsquares", method='trf', max_nfev=5000)
+    opt_routine(C_lb = -1., C_ub = 1., verbose_multi=1, verbose_min=2, multirestart=True, parallel=False, resets = 10, mode = "leastsquares", method='trf', max_nfev=1000)
     #testprofile()
     
