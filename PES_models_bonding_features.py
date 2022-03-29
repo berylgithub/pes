@@ -419,7 +419,7 @@ def U_ref_energy(R_mat, C, R_h, R_C, R_0, g, indexer):
     
 # basis functions phi:
 # max degree = 5
-def phi_fun(U, Y, G):
+def phi_fun(U, Y, G, num_basis):
     '''
     constructs matrix containing basis functions phi, shape = (num_atom, num_basis, num_data), # Table 11 of Ulrik
     params:
@@ -427,7 +427,7 @@ def phi_fun(U, Y, G):
         - Y = matrix of coordination vectors, shape = (num_atom, max_d, num_data)
         - G = Gram matrix, shape = (num_atom, max_d, max_d, num_data)
     '''
-    num_atom = U.shape[0]; num_data = U.shape[1]; num_basis = 59; #59 basis
+    num_atom = U.shape[0]; num_data = U.shape[1]; #59 basis default
     phi = np.zeros((num_atom, num_basis, num_data))
     #print(phi.shape)
     # degree 1:
@@ -496,7 +496,97 @@ def phi_fun(U, Y, G):
     # scales phi by dividing it with <phi_k> := \sqrt(\sum_i \phi_k[i]**2/N):
     exp_phi = np.sqrt(np.sum(phi**2, axis=0)/phi.shape[0])
     phi = phi/exp_phi
+
+    return phi
+
+def phi_fun2(Y, G, num_basis):
+    '''
+    no U
+    constructs matrix containing basis functions phi, shape = (num_atom, num_basis, num_data), # Table 11 of Ulrik
+    params:
+        - U = reference pair potential energy, shape = (num_atom, num_data)
+        - Y = matrix of coordination vectors, shape = (num_atom, max_d, num_data)
+        - G = Gram matrix, shape = (num_atom, max_d, max_d, num_data)
+    '''
+    num_atom = Y.shape[0]; num_data = Y.shape[-1];
+    phi = np.zeros((num_atom, num_basis, num_data))
+    #print(phi.shape)
+    # degree 1:
+    #phi[:, 0] = U;
+    phi[:, 0] = Y[:, 0];
     
+    # degree 2:
+    #phi[:, 2] = U*Y[:, 0];
+    phi[:, 1] = Y[:, 0]**2;
+    phi[:, 2] = Y[:, 1];
+    phi[:, 3] = G[:, 0,0];
+    
+    # degree 3:
+    #phi[:, 6] = U*phi[:, 3]; phi[:, 7] = U*Y[:, 1]; phi[:, 8] = U*G[:, 0, 0];
+    phi[:, 4] = phi[:, 1]*Y[:, 0]; # Y_1^3
+    phi[:, 5] = Y[:, 0]*Y[:, 1];
+    phi[:, 6] = Y[:, 2];
+    phi[:, 7] = G[:, 0, 0]*Y[:, 0];
+    phi[:, 8] = G[:, 0, 1];
+    
+    # degree 4 [14:30]:
+    '''
+    phi[:, 14] = U*phi[:, 9];
+    phi[:, 15] = U*Y[:, 0]*Y[:, 1];
+    phi[:, 16] = U*Y[:, 2];
+    phi[:, 17] = U*G[:, 0,0]*Y[:, 0];
+    phi[:, 18] = U*G[:, 0,1];
+    '''
+    phi[:, 9] = phi[:, 4]*Y[:, 0]; #Y_1^4
+    phi[:, 10] = phi[:, 1]*Y[:, 1]; #Y_1^2Y_2
+    phi[:, 11] = Y[:, 0]*Y[:, 2];
+    phi[:, 12] = Y[:, 1]**2; #Y_2^2
+    phi[:, 13] = Y[:, 3];
+    phi[:, 14] = G[:, 0,0]*phi[:, 1]; #G_11Y_1^2
+    phi[:, 15] = G[:, 0,0]*Y[:, 1];
+    phi[:, 16] = G[:, 0,0]**2;
+    phi[:, 17] = G[:, 0,1]*Y[:, 0];
+    phi[:, 18] = G[:, 0,2];
+    phi[:, 19] = G[:, 1,1];
+    
+    # degree 5 [30:59]:
+    '''
+    phi[:, 30] = U*phi[:, 19];
+    phi[:, 31] = U*phi[:, 3]*Y[:, 1];
+    phi[:, 32] = U*phi[:, 3]*G[:, 0,0];
+    phi[:, 33] = U*Y[:, 0]*Y[:, 2];
+    phi[:, 34] = U*phi[:, 27];
+    phi[:, 35] = U*phi[:, 22];
+    phi[:, 36] = U*phi[:, 25];
+    phi[:, 37] = U*Y[:, 3];
+    phi[:, 38] = U*phi[:, 26];
+    phi[:, 39] = U*G[:, 0,2];
+    phi[:, 40] = U*G[:, 1,1];
+    '''
+    phi[:, 20] = phi[:, 9]*Y[:, 0]; # Y_1^5
+    phi[:, 21] = phi[:, 4]*phi[:, 2];
+    phi[:, 22] = phi[:, 4]*G[:, 0,0];
+    phi[:, 23] = phi[:, 1]*Y[:, 2];
+    phi[:, 24] = phi[:, 1]*G[:, 0,1];
+    phi[:, 25] = Y[:, 0]*phi[:, 12];
+    phi[:, 26] = phi[:, 5]*G[:, 0,0];
+    phi[:, 27] = Y[:, 0]*Y[:, 3];
+    phi[:, 28] = phi[:, 7]*G[:, 0,0];
+    phi[:, 29] = Y[:, 0]*G[:, 0,2];
+
+    phi[:, 30] = Y[:, 0]*G[:, 1,1]
+    phi[:, 31] = Y[:, 1]*Y[:, 2]
+    phi[:, 32] = Y[:, 1]*G[:, 0,1]
+    phi[:, 33] = Y[:, 2]*G[:, 0,0]
+    phi[:, 34] = Y[:, 4]
+    phi[:, 35] = G[:, 0,0]*G[:, 0,1]
+    phi[:, 36] = G[:, 0,3]
+    phi[:, 37] = G[:, 1,2]
+    
+    # scales phi by dividing it with <phi_k> := \sqrt(\sum_i \phi_k[i]**2/N):
+    #exp_phi = np.sqrt(np.sum(phi**2, axis=0)/phi.shape[0])
+    #phi = phi/exp_phi
+
     return phi
 
 # energy models:
@@ -595,7 +685,7 @@ def epsilon_wrapper(phi, W_mat):
 # tuning params: C, R_h, R_low, R_0, R_m, R_up, R_C = scalar; A1, A2, B1, B2, C1, C2 = num_basis
 
 #def f_pot_bond(C, R_h, R_low, R_0, R_m, R_up, R_C, A1, A2, B1, B2, C1, C2, R, X, indexer, num_atom, max_deg, e, g=6):
-def f_pot_bond(C, R_h, R_low, R_0, R_m, R_up, R_C, W_mat, R, X, indexer, num_atom, max_deg, e, g=6):
+def f_pot_bond(C, R_h, R_low, R_0, R_m, R_up, R_C, W_mat, R, X, indexer, num_atom, num_basis, max_deg, e, g=6):
     '''
     computes the energy, shape = (num_data)
     params: 
@@ -612,7 +702,7 @@ def f_pot_bond(C, R_h, R_low, R_0, R_m, R_up, R_C, W_mat, R, X, indexer, num_ato
     '''
     # compute U basis, contains tuning params (C, R_h, R_C, R_0):
     #print("C, R_h, R_C, R_0", C, R_h, R_C, R_0)
-    U = U_ref_energy(R, C, R_h, R_C, R_0, g, indexer)
+    #U = U_ref_energy(R, C, R_h, R_C, R_0, g, indexer)
     #print('U', U.shape)
     #print(U)
     
@@ -629,9 +719,8 @@ def f_pot_bond(C, R_h, R_low, R_0, R_m, R_up, R_C, W_mat, R, X, indexer, num_ato
     #print('G', G.shape)
     
     # compute phi matrix:
-    phi = phi_fun(U, Y, G)
-    #print('phi', phi.shape)
-    #print(phi)
+    #phi = phi_fun(U, Y, G, num_basis)
+    phi = phi_fun2(Y, G, num_basis)
     
     # compute the energy, contains tuning params (A1, A2, B1, B2, C1, C2):
     #V = epsilon_wrapper(phi, A1, A2, B1, B2, C1, C2)
@@ -779,7 +868,7 @@ def f_pot_bond_wrapper_trpp(coeffs, *args):
     #print("pi", pi)
     V_pred = f_pot_bond(pi[0], pi[1], pi[2], pi[3], pi[4], pi[5], pi[6], 
                         W_mat, 
-                        R, X, indexer, num_atom, max_deg, e, g)
+                        R, X, indexer, num_atom, num_basis, max_deg, e, g)
     
 
     return V_pred
@@ -1208,9 +1297,9 @@ if __name__=='__main__':
         # get subset by index:
         if data_index_dir == None:
             # full data:
-            sub_V = V[:100]
-            sub_R = R[:100]
-            sub_X = X[:100]
+            sub_V = V[:10]
+            sub_R = R[:10]
+            sub_X = X[:10]
         else:
             idx = np.load(data_index_dir, allow_pickle=True)
             print("using crossval data splitting", idx[0].shape, idx[1].shape)
