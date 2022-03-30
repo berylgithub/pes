@@ -60,16 +60,6 @@ def s_bond_strength(R, R_up, R_low, t, t0):
     elif R_up < R:
         return 0
     '''
-    '''
-    low_idx = np.where(R < R_low)
-    mid_idx = np.where((R_low <= R) & (R <= R_up))
-    up_idx = np.where(R > R_up)
-    R[low_idx] = 1. # low
-    R[up_idx] = 0. # up
-    t_mid = t[mid_idx]
-    R[mid_idx] = t0/(t_mid+t0) # mid cond
-    return R
-    '''
     s = np.zeros(R.shape)
     low_idx = (R < R_low) 
     mid_idx = (R <= R_up) & ~low_idx #~low_idx := R_low <= R
@@ -386,10 +376,8 @@ def V_ref_pairpot(R, C, R_h, R_C, R_0, g):
     Vref[mid_idx] = R_mid
     return Vref
     
-    
-
 V_ref_pairpot_vec = np.vectorize(V_ref_pairpot)
- 
+
 def U_ref_energy(R_mat, C, R_h, R_C, R_0, g, indexer):
     '''
     computes the reference energy matrix, U[i] = \sum V_ij, shape = (num_atom, num_data)
@@ -414,6 +402,8 @@ def U_ref_energy(R_mat, C, R_h, R_C, R_0, g, indexer):
     
     for i, coord in enumerate(indexer):
         U[i] = np.sum(Vref[:, coord], axis=1)
+
+    U = U/np.max(U) # scale U by U := U/max(U)
     return U
     
     
@@ -493,9 +483,11 @@ def phi_fun(U, Y, G, num_basis):
     phi[:, 57] = G[:, 0,3]
     phi[:, 58] = G[:, 1,2]
     
+    '''
     # scales phi by dividing it with <phi_k> := \sqrt(\sum_i \phi_k[i]**2/N):
     exp_phi = np.sqrt(np.sum(phi**2, axis=0)/phi.shape[0])
     phi = phi/exp_phi
+    '''
 
     return phi
 
@@ -701,7 +693,7 @@ def f_pot_bond(C, R_h, R_low, R_0, R_m, R_up, R_C, W_mat, R, X, indexer, num_ato
     '''
     # compute U basis, contains tuning params (C, R_h, R_C, R_0):
     #print("C, R_h, R_C, R_0", C, R_h, R_C, R_0)
-    #U = U_ref_energy(R, C, R_h, R_C, R_0, g, indexer)
+    U = U_ref_energy(R, C, R_h, R_C, R_0, g, indexer)
     #print('U', U.shape)
     #print(U)
     
@@ -718,8 +710,8 @@ def f_pot_bond(C, R_h, R_low, R_0, R_m, R_up, R_C, W_mat, R, X, indexer, num_ato
     #print('G', G.shape)
     
     # compute phi matrix:
-    #phi = phi_fun(U, Y, G, num_basis)
-    phi = phi_fun2(Y, G, num_basis)
+    phi = phi_fun(U, Y, G, num_basis)
+    #phi = phi_fun2(Y, G, num_basis)
     
     # compute the energy, contains tuning params (A1, A2, B1, B2, C1, C2):
     #V = epsilon_wrapper(phi, A1, A2, B1, B2, C1, C2)
@@ -1309,7 +1301,7 @@ if __name__=='__main__':
         print("data size =", sub_V.shape[0])
 
         # fixed parameters:
-        num_basis = 38; max_deg = 5; num_atom = 3; e = 3; g = 6;
+        num_basis = 59; max_deg = 5; num_atom = 3; e = 3; g = 6;
         indexer = atom_indexer(num_atom)
 
         # multirestart:
@@ -1402,6 +1394,6 @@ if __name__=='__main__':
     #basis_function_tests()
     #opt_test()
     #multistart_test()
-    opt_routine(C_lb = -1., C_ub = 1., verbose_multi=1, verbose_min=2, multirestart=True, parallel=False, resets = 50, mode = "leastsquares", method='trf', max_nfev=1000)
+    opt_routine(C_lb = -1., C_ub = 1., verbose_multi=1, verbose_min=2, multirestart=True, parallel=False, resets = 10, mode = "leastsquares", method='trf', max_nfev=1000)
     #testprofile()
     
