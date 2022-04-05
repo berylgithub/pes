@@ -955,6 +955,7 @@ def multistart_method(F_obj, F_eval, Y_test,
                 C = np.random.uniform(C_lb, C_ub, C_size)  
                 continue
         # compute RMSE:
+        np.savetxt('params/c_'+str(i)+'.out', res.x, delimiter=',') # save the iterate of each reset
         Y_pred = F_eval(res.x, *args_eval)
         rmse = RMSE(Y_test, Y_pred)
         if verbose_multi == 1:
@@ -1288,9 +1289,9 @@ if __name__=='__main__':
         # get subset by index:
         if data_index_dir == None:
             # full data:
-            sub_V = V[:100]
-            sub_R = R[:100]
-            sub_X = X[:100]
+            sub_V = V
+            sub_R = R
+            sub_X = X
         else:
             idx = np.load(data_index_dir, allow_pickle=True)
             print("using crossval data splitting", idx[0].shape, idx[1].shape)
@@ -1394,6 +1395,6 @@ if __name__=='__main__':
     #basis_function_tests()
     #opt_test()
     #multistart_test()
-    opt_routine(C_lb = -1., C_ub = 1., verbose_multi=1, verbose_min=2, multirestart=True, parallel=False, resets = 10, mode = "leastsquares", method='trf', max_nfev=1000)
+    opt_routine(C_lb = -1., C_ub = 1., verbose_multi=1, verbose_min=2, multirestart=True, parallel=False, resets = 100, mode = "leastsquares", method='trf', max_nfev=2000)
     #testprofile()
     
