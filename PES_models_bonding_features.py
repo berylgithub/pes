@@ -403,7 +403,8 @@ def U_ref_energy(R_mat, C, R_h, R_C, R_0, g, indexer):
     for i, coord in enumerate(indexer):
         U[i] = np.sum(Vref[:, coord], axis=1)
 
-    U = U/np.max(U) # scale U by U := U/max(U)
+    #U = U/np.max(U) # scale U by U := U/max(U)
+    U = U/np.max(np.abs(U)) # to alleviate if the data distribution is [-x, 0]
     return U
     
     
@@ -1395,6 +1396,6 @@ if __name__=='__main__':
     #basis_function_tests()
     #opt_test()
     #multistart_test()
-    opt_routine(C_lb = -1., C_ub = 1., verbose_multi=1, verbose_min=2, multirestart=True, parallel=False, resets = 100, mode = "leastsquares", method='trf', max_nfev=2000)
+    opt_routine(data_index_dir="data/h3/crossval_indices_1.npy", C_lb = -1., C_ub = 1., verbose_multi=1, verbose_min=2, multirestart=True, parallel=False, resets = 100, mode = "leastsquares", method='lm', max_nfev=int(1.5e4))
     #testprofile()
     
