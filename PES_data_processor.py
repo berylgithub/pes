@@ -120,7 +120,7 @@ def distance_to_coord(dist_vec, N, verbose=False):
     eigvals, eigvecs = np.linalg.eigh(M_mat) # symmetric matrix eigendecomposition, uses (eigh)ermitian
     #print(eigvecs @ np.diag(eigvals) @ eigvecs.T) # M = Q*lambda*Q^t
     # replace any very small |x| s.t. x<0 \in R, with 0, if |x|<delta:
-    delta = -1e-4 # intuitive near 0 threshold
+    delta = -1e-6 # intuitive near 0 threshold
     eigvals[np.where((eigvals > delta) & (eigvals < 0))] = 0
     if verbose:
         print("eigval =",eigvals)
@@ -205,15 +205,23 @@ if __name__ == "__main__":
     cross_val("data/h3/", H3_data.shape[0], 5)
     print(np.load("data/h3/crossval_indices_0.npy", allow_pickle=True)[1])
     '''
-    dir = "data/h4/h4_TZ_data.txt"
-    H4 = np.loadtxt(dir)
-    cross_val("data/h4/", H4.shape[0], 5)
-    print(np.load("data/h4/crossval_indices_0.npy", allow_pickle=True)[1])
+    dir = "data/h5/h5_data.txt"
+    Hn = np.loadtxt(dir)
+    print(Hn.shape)
+    #cross_val("data/h5/", Hn.shape[0], 5)
+    #print(np.load("data/h5/crossval_indices_0.npy", allow_pickle=True)[1])
 
-    R = H4[:, :-1]
-    V = H4[:, -1]
+    R = Hn[:, :-1]
+    V = Hn[:, -1]
     X = []
     for r in R:
-        X.append(distance_to_coord_v2(r, 4))
+        #print(distance_to_coord_v2(r, 4)[:,1:])
+        #X.append(distance_to_coord_v2(r, 4)[:,1:])
+        X.append(distance_to_coord_v2(r, 5))
     X = np.array(X)
-    np.save("data/h4/h4_TZ_coord", X)
+    np.save("data/h5/h5_coord", X)
+
+    print(R[0])
+    X = np.load("data/h5/h5_coord.npy")
+    print(np.linalg.norm(X[0][1] - X[0][2]))
+    print(X.shape)
