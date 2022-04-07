@@ -1277,16 +1277,22 @@ if __name__=='__main__':
         #print(repr(C))
         
 
-    def opt_routine(data_index_dir = None, pretrained_C = None, multirestart = False, parallel = False, resets = 100, 
+    def opt_routine(data_dir = None, X_dir = None, data_index_dir = None, pretrained_C = None, multirestart = False, parallel = False, resets = 100, 
                     mode = "leastsquares", method = "lm", max_nfev = None, C_lb = -20., C_ub = 20., verbose_multi=1, verbose_min=2):
         '''
         main fun to wrap all things needed for opt, only cover the vars for data processing, just for convenience
         '''
 
         # load data and coordinates:
+        '''
         H3_data = np.load("data/h3/h3_data.npy")
         R = H3_data[:, 0:3]; V = H3_data[:, 3]
         X = np.load("data/h3/h3_coord.npy")
+        '''
+        print(data_dir,"data!!")
+        Hn_data = np.loadtxt(data_dir)
+        R = Hn_data[:, :-1]; V = Hn_data[:, -1]
+        X = np.load(X_dir)
         # get subset by index:
         if data_index_dir == None:
             # full data:
@@ -1396,6 +1402,10 @@ if __name__=='__main__':
     #basis_function_tests()
     #opt_test()
     #multistart_test()
-    opt_routine(data_index_dir="data/h3/crossval_indices_1.npy", C_lb = -1., C_ub = 1., verbose_multi=1, verbose_min=2, multirestart=True, parallel=False, resets = 100, mode = "leastsquares", method='lm', max_nfev=int(1.5e4))
+    opt_routine(data_dir = "data/h4/h4_QZ_data.txt", X_dir = "data/h4/h4_QZ_coord.npy", 
+                data_index_dir="data/h4/indices_QZ/crossval_indices_1.npy", 
+                C_lb = -1., C_ub = 1., verbose_multi=1, verbose_min=2, 
+                multirestart=True, parallel=False, resets = 100, 
+                mode = "leastsquares", method='lm', max_nfev= int(1e5))
     #testprofile()
     
