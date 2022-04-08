@@ -1278,7 +1278,8 @@ if __name__=='__main__':
         
 
     def opt_routine(data_dir = None, X_dir = None, data_index_dir = None, pretrained_C = None, multirestart = False, parallel = False, resets = 100, 
-                    mode = "leastsquares", method = "lm", max_nfev = None, C_lb = -20., C_ub = 20., verbose_multi=1, verbose_min=2):
+                    mode = "leastsquares", method = "lm", max_nfev = None, C_lb = -20., C_ub = 20., verbose_multi=1, verbose_min=2,
+                    num_basis = 59, max_deg = 5, num_atom = 3, e = 3, g = 6):
         '''
         main fun to wrap all things needed for opt, only cover the vars for data processing, just for convenience
         '''
@@ -1309,7 +1310,7 @@ if __name__=='__main__':
         print("data size =", sub_V.shape[0])
 
         # fixed parameters:
-        num_basis = 59; max_deg = 5; num_atom = 3; e = 3; g = 6;
+        print("num_basis=", num_basis, ", max_deg=",max_deg, ", num_atom=",num_atom, ", e=",e, ", g=",g)
         indexer = atom_indexer(num_atom)
 
         # multirestart:
@@ -1402,10 +1403,11 @@ if __name__=='__main__':
     #basis_function_tests()
     #opt_test()
     #multistart_test()
-    opt_routine(data_dir = "data/h4/h4_QZ_data.txt", X_dir = "data/h4/h4_QZ_coord.npy", 
-                data_index_dir="data/h4/indices_QZ/crossval_indices_1.npy", 
+    opt_routine(data_dir = "data/h5/h5_data.txt", X_dir = "data/h5/h5_coord.npy", 
+                data_index_dir="data/h5/crossval_indices_1.npy", 
                 C_lb = -1., C_ub = 1., verbose_multi=1, verbose_min=2, 
                 multirestart=True, parallel=False, resets = 100, 
-                mode = "leastsquares", method='lm', max_nfev= int(1e5))
+                mode = "leastsquares", method='lm', max_nfev= int(1e5),
+                num_basis = 59, max_deg = 5, num_atom = 5, e = 3, g = 6)
     #testprofile()
     
