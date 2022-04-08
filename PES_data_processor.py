@@ -5,6 +5,8 @@ Created on Wed Oct 27 20:05:41 2021
 @author: Saint8312
 """
 
+import numpy as np
+
 '''Query routines'''
 def query_one_var(value, key, list_data):
     #to query data where data[key] = value
@@ -156,7 +158,7 @@ def distance_to_coord_v2(dist_vec, N, verbose=False):
         print("G:", G)
     eigvals, eigvecs = np.linalg.eigh(G)
     # replace any very small |x| s.t. x<0 \in R, with 0, if |x|<delta:
-    delta = -1e-6 # intuitive near 0 threshold
+    delta = -1e-3 # near 0 threshold
     eigvals[np.where((eigvals > delta) & (eigvals < 0))] = 0
     if verbose:
         print("eigvals =", eigvals)
@@ -185,7 +187,6 @@ def cross_val(save_dir, num_data, n_split):
         i+=1
 
 if __name__ == "__main__":
-    import numpy as np
     def conv_pd_to_pkl():
         import pandas as pd
         import pickle
@@ -215,9 +216,9 @@ if __name__ == "__main__":
     V = Hn[:, -1]
     X = []
     for r in R:
-        #print(distance_to_coord_v2(r, 4)[:,1:])
-        #X.append(distance_to_coord_v2(r, 4)[:,1:])
-        X.append(distance_to_coord_v2(r, 5))
+        #print(distance_to_coord_v2(r, 4)[:, 1:])
+        #X.append(distance_to_coord_v2(r, 4)[:, 1:])
+        X.append(distance_to_coord_v2(r, 5)[:, 2:])
     X = np.array(X)
     np.save("data/h5/h5_coord", X)
 
