@@ -631,7 +631,7 @@ function opttest()
     res = optimize(Θ -> f_least_squares(f_eval_wrapper, sub_V, Θ, sub_R, sub_X, 
                                     r_xy, N, n_atom, n_basis, idxer, g),
                 Θ_vec, BFGS(),
-                Optim.Options(iterations = 1000, show_trace=true);
+                Optim.Options(iterations = 100, show_trace=true);
                 )
     # check RMSE:
     V_pred = f_eval_wrapper(res.minimizer, sub_R, sub_X, r_xy, N, n_atom, n_basis, idxer, g)
@@ -641,3 +641,4 @@ function opttest()
     end
 end
 
+opttest()
