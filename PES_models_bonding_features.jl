@@ -571,30 +571,73 @@ end
 """
 === MAIN CALLERS
 """
-# redefine data
-H_data = readdlm("data/h3/h3_data.txt")
-# load atomic coordinates:
-H_coord = npzread("data/h3/h3_coord.npy")
-R = H_data[:,1:end-1]; V = H_data[:, end-1]
-n_data = size(R)[1]
-idxes = shuffleobs(1:n_data) # shuffle indexes
-id_train, id_test = splitobs(idxes, at=0.8) # split train and test indexes
-# split data by index:
-X = H_coord
-R_train = R[id_train,:]; V_train = V[id_train];
-R_test = R[id_test,:]; V_test = V[id_test]
-X_train = H_coord[id_train,:,:]; X_test = H_coord[id_test,:,:]
-# init params:
-n_atom, n_basis, g = (3, 59, 6.)
-Θ = rand(Distributions.Uniform(-1.,1.), n_basis, 6)
-C, R_h, R_C, R_0 = (1., 0.01, 2., .9,)
-r_xy, N = (1.4172946, 5)
-idxer = atom_indexer(n_atom)
-V = f_pot_bond(Θ, C, R_h, R_C, R_0, R, X, r_xy, N, n_atom, n_basis, idxer, g)
-display(V)
-Θ_vec = vcat(Θ[:], [C, R_h, R_C, R_0])
-V = f_eval_wrapper(Θ_vec, R, X, r_xy, N, n_atom, n_basis, idxer, g)
-display(V)
-@benchmark f_pot_bond(Θ, C, R_h, R_C, R_0, R, X, r_xy, N, n_atom, n_basis, idxer, g)
+function benchmarktest()
+    # redefine data
+    H_data = readdlm("data/h3/h3_data.txt")
+    # load atomic coordinates:
+    H_coord = npzread("data/h3/h3_coord.npy")
+    R = H_data[:,1:end-1]; V = H_data[:, end-1]
+    n_data = size(R)[1]
+    idxes = shuffleobs(1:n_data) # shuffle indexes
+    id_train, id_test = splitobs(idxes, at=0.8) # split train and test indexes
+    # split data by index:
+    X = H_coord
+    R_train = R[id_train,:]; V_train = V[id_train];
+    R_test = R[id_test,:]; V_test = V[id_test]
+    X_train = H_coord[id_train,:,:]; X_test = H_coord[id_test,:,:]
+    # init params:
+    n_atom, n_basis, g = (3, 59, 6.)
+    Θ = rand(Distributions.Uniform(-1.,1.), n_basis, 6)
+    C, R_h, R_C, R_0 = (1., 0.01, 2., .9,)
+    r_xy, N = (1.4172946, 5)
+    idxer = atom_indexer(n_atom)
+    V = f_pot_bond(Θ, C, R_h, R_C, R_0, R, X, r_xy, N, n_atom, n_basis, idxer, g)
+    display(V)
+    Θ_vec = vcat(Θ[:], [C, R_h, R_C, R_0])
+    V = f_eval_wrapper(Θ_vec, R, X, r_xy, N, n_atom, n_basis, idxer, g)
+    display(V)
+    # only callable directly in main:
+    @benchmark f_pot_bond(Θ, C, R_h, R_C, R_0, R, X, r_xy, N, n_atom, n_basis, idxer, g)
+end
 
+function opttest()
+    # redefine data here for convenience
+    H_data = readdlm("data/h3/h3_data.txt")
+    # load atomic coordinates:
+    H_coord = npzread("data/h3/h3_coord.npy")
+    R = H_data[:,1:end-1]; V = H_data[:, end-1]
+    n_data = size(R)[1]
+    idxes = shuffleobs(1:n_data) # shuffle indexes
+    id_train, id_test = splitobs(idxes, at=0.8) # split train and test indexes
+    # split data by index:
+    X = H_coord
+    R_train = R[id_train,:]; V_train = V[id_train];
+    R_test = R[id_test,:]; V_test = V[id_test]
+    X_train = H_coord[id_train,:,:]; X_test = H_coord[id_test,:,:]
+    # param set:
+    siz = 50
+    sub_R = R_train[1:siz,:]
+    sub_V = V_train[1:siz]
+    sub_X = X_train[1:siz, :, :]
+
+    r_xy, N = (1.4172946, 5)
+    n_atom, n_basis, g = (3, 59, 6.)
+    idxer = atom_indexer(n_atom)
+
+    Θ_vec = rand(Distributions.Uniform(-1.,1.), n_basis*6 + 4)
+    #V = f_eval_wrapper(Θ_vec, sub_R, sub_X, r_xy, N, n_atom, n_basis, idxer, g)
+    #display(V)
+    #f_least_squares(f_eval_wrapper, sub_V, Θ_vec, sub_R, sub_X, r_xy, N, n_atom, n_basis, idxer, g)
+    res = optimize(Θ -> f_least_squares(f_eval_wrapper, sub_V, Θ, sub_R, sub_X, 
+                                    r_xy, N, n_atom, n_basis, idxer, g),
+                Θ_vec, BFGS(),
+                Optim.Options(iterations = 1000, show_trace=true);
+                )
+    # check RMSE:
+    V_pred = f_eval_wrapper(res.minimizer, sub_R, sub_X, r_xy, N, n_atom, n_basis, idxer, g)
+    println(f_RMSE(sub_V, V_pred))
+    for i=1:length(sub_V)
+        println(sub_V[i]," ",V_pred[i])
+    end
+end
 
