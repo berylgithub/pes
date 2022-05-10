@@ -1,18 +1,87 @@
-using Optim, LsqFit, NLsolve# opt libs
+using Optim, LsqFit, NLsolve # opt libs
 using LinearAlgebra # self explanatory
-using Zygote, ReverseDiff # autodiff
+using Zygote, ReverseDiff, ForwardDiff # autodiff
 using Plots, LaTeXStrings # plots
-using StatsBase, DataStructures, DelimitedFiles, MLUtils, BenchmarkTools, NPZ, StaticArrays # utils
+using StatsBase, DataStructures, MLUtils, StaticArrays # data processing utils
 using Distributions # sampling distributions
+using DelimitedFiles, JSON3, NPZ # file utils
+using BenchmarkTools # selfexplanatory
+"""
+possible efficiency opt: https://github.com/JuliaArrays/StaticArrays.jl # doesnt work for large arrays!!
+for checking allocs: 
+ - https://github.com/KristofferC/TimerOutputs.jl
+ - https://discourse.julialang.org/t/way-to-show-where-memory-allocations-occur/2161
+probably helpful for particularly array assignment:
+https://discourse.julialang.org/t/help-understanding-performance-with-assignment-to-allocated-matrix/8149
+
+autodiff typeerror: https://discourse.julialang.org/t/forwarddiff-no-method-matching-error/53311
+
+- !! NEED TO CHANGE EVERYTHING TO REAL TYPE FOR forward AD TO WORK !! <<< slow
+- need to preallocate everything (like in C++ !!) so no Real allocation instead, Real always allocates due to abstract!!
+
+reversediff Float64 error: https://discourse.julialang.org/t/argumenterror-converting-an-instance-of-reversediff-trackedreal-float64-float32-nothing-to-float32-is-not-defined/69380
+"""
 
 """
-=== computation utils ===
+========
+>>> old model <<<
+========
+"""
+# functional form:
+function f_ratpot_2(Θ, R, M)
+    #=
+    ansatz 1 for diatomic potential
+    params:
+        - Θ := training parameters, vector ()
+        - R := distances, vector
+    =#
+    # unroll coefficients
+    a = Θ[1:M]
+    b = Θ[M+1:2*M]
+    c = Θ[2*M+1:3*M+4]
+    d = Θ[3*M+5:4*M+7]
+    
+    # b_i ≥ 0 for i > 1:
+    t = b[2:M]
+    bool = t .< 0.
+    t[bool] = -t[bool]
+    b[2:M] = t
+    
+    # d_i ≥ 0 for i > 0:
+    bool = d .< 0.
+    d[bool] = -d[bool]    
+    
+    # evaluate P:
+    P = c[end-1]
+    P = P .* ((R .- a[1]).^2 .+ (b[1] .* R))
+    for i=2:M
+        P .*= (R .- a[i]).^2 .+ (b[i]*R)
+    end
+
+    
+    # eval Q:
+    Q = (R .+ d[end]).*R
+    for i=1:M+2
+        Q .*= (R .- c[i]).^2 .+ d[i].*R
+    end
+    
+    # eval potential:
+    V = c[end] .+ (P ./ Q)
+    return V
+end
+
+
+"""
+=========================
+>>> computation utils <<<
+=========================
 """
 tsqrt(x) = x > 0. ? √x : √1e-6 # truncated sqrt, sqrt(x) if x > 0 else sqrt(1e-6)
 tlog(x) = log(max(0.1, x)) # truncated log 
 
-# use distance to coord implementation in Py for now. Load the files using NPZ
-
+"""
+use distance to coord implementation in Py for now. Load the files using NPZ
+"""
 function atom_indexer(n_atom)
     """
     generates array of coordination indexes for Y[i] vector, which depends on num_atom, e.g.:
@@ -63,7 +132,9 @@ end
 
 
 """
-=== objectives:
+==================
+>>> objectives <<<
+==================
 """
 
 f_RMSE(X, Y) = √(sum((X .- Y) .^ 2)/length(X))
@@ -84,7 +155,9 @@ function f_least_squares_vec(f_eval, Y, f_args...)
 end
 
 """
-=== New bonding features for HxOy: coordinate function and bump functions
+=================================
+>>> New bonding features for HxOy: coordinate function and bump functions <<<
+=================================
 """
 # z(t) coordinate function:
 function z_coord(t)
@@ -145,8 +218,7 @@ end
 f_t(c_xy, r2_stat, R2) = c_xy*(R2 .- r2_stat) # takes r2 := r^2 vector, rest are scalars
 f_t_scalar(c_xy, r2_stat, r2) = c_xy*(r2 - r2_stat) # scalar version of f_t
 f_c(N, r2_hi, r2_low) = N/(r2_hi - r2_low) # scalar ops
-f_k(t_low, t_hi) = collect(round(t_low):round(t_hi))[2:end-1] # generate a list of k ∈ Z ∩ t_low < k < t_hi
-
+f_k(t_low, t_hi) = collect(ceil(t_low):floor(t_hi)) # generate a list of k ∈ Z ∩ t_low < k < t_hi
 
 sqr(x) = x^2 # abstraction fun of x^2
 
@@ -162,6 +234,9 @@ function f_z_bump(R, r_xy, N)
         - R, subset of matrix of distances, (n_data, n_d) shape, ∈ Float64
         - r_xy, equilibrium distance of pairpot xy, const scalar ∈ real
         - N, hyperparam: num of bumps, scalar ∈ int
+    Notes: 
+        - should t_low < -1?
+        - should z be treated differently from f_k?
     """
     #these need to be moved outside of the function, since for hetero mol these would be needed for other primitive features.
     r2_xy = r_xy^2; r2_hi = maximum(R)^2; r2_low = minimum(R)^2; 
@@ -175,8 +250,7 @@ function f_z_bump(R, r_xy, N)
     t_xy = transpose(t_xy)
     t_low = f_t_scalar(c_xy, r2_xy, r2_low)
     t_hi = f_t_scalar(c_xy, r2_xy, r2_hi)
-    k = f_k(t_low, t_hi); k_idx = convert(Array{Int}, k)
-    
+    k = f_k(t_low, t_hi); k_idx = 1:length(k)
     n_k = length(k); 
     output_mat = Array{Float64}(undef, n_data, n_d, n_k+1) # contains (n_data, d, k+1) array, [:,:,k+1] is z
     # bump:
@@ -193,8 +267,134 @@ function f_z_bump(R, r_xy, N)
     return output_mat
 end
 
+function f_z_bump!(output_mat, R, r_xy, N)
+    """
+    !! UNALLOC VER !!
+    computes the z(t) and bump function and stacks them into one array for one unique xy atomic pair.
+    - returns (n_data, n_d, n_k = k+1) array, where [:,:,k+1] contains z, the rest are bumps.
+    d here is actually ⊂ d, since there would be another z(t) and bump calculation if the molecule is heterogeneous, e.g.,
+    H2O: (HH, HO, HO) -> (1 c_HH, 2 c_HO), it means the array's sizes would be c_HH: (n_data, 1, k+1), c_HO: (n_data, 2, k+1),
+    stacked into z_bumo_mat: (n_data, 3, k+1) total size.
+    params:
+        - R, subset of matrix of distances, (n_data, n_d) shape, ∈ Real
+        - r_xy, equilibrium distance of pairpot xy, const scalar ∈ Real
+        - N, hyperparam: num of bumps, scalar ∈ int
+    """
+    #these need to be moved outside of the function, since for hetero mol these would be needed for other primitive features.
+    r2_xy = r_xy^2; r2_hi = maximum(R)^2; r2_low = minimum(R)^2; 
+    # R2 = R.^2
+    R2 = map(sqr, R)
+    # t_xy:
+    n_data = size(R2)[1]; n_d = size(R2)[2];
+    c_xy = f_c(N, r2_hi, r2_low)
+    t_xy = map(i -> f_t(c_xy, r2_xy, (@view R2[:,i])), 1:n_d) # t of equilibrium distance vector{n_d}(vector{n_data})
+    t_xy = mapreduce(permutedims, vcat, t_xy)
+    t_xy = transpose(t_xy)
+    t_low = f_t_scalar(c_xy, r2_xy, r2_low)
+    t_hi = f_t_scalar(c_xy, r2_xy, r2_hi)
+    k = f_k(t_low, t_hi); k_idx = 1:length(k)
+    
+    n_k = length(k); 
+    # bump:
+    range_n_data = 1:n_data; range_n_d = 1:n_d
+    for i = k_idx
+        output_mat[:,:,i] = map(x -> f_bump(x, k[i]), t_xy) # map on matrix
+    end
+
+    # z:
+    output_mat[:, :, end] = map(z_coord, t_xy);
+end
+
 """
-=== Bonding features:  𝑈,𝑌(𝑧(𝑡),𝑓bump),𝐺(𝑧(𝑡),𝑓bump)
+===================
+>>> Tchebyshev pol primitive features <<<
+===================
+"""
+function t_R_fun(R, R_up, R_low, e)
+    """
+    sub bond strength, similar(R) when using map()
+    """
+    R2 = R^2
+    return ((R2 - R_low^2)/(R_up^2 - R2))^e
+end
+
+
+function s_bond_strength(R, R_up, R_low, t, t0)
+    """
+    s_{ij} = s(R_{ij}), similar(R)
+    t0 = t_R_fun(Rm, R_up, R_low, e)
+    if R_m = R and R_low < R_m < R_up, then bond_strength_s = 0.5
+    trainable parameters: (R_low, R_m, R_up)
+    """
+    s = 0.
+    if R < R_low
+        s = 1.
+    elseif R_low ≤ R ≤ R_up
+        s = t0/(t+t0)
+    end
+    return s
+end
+
+s_dash_f(s) = 2 - 4 * s
+function p_tchebyshev_pol(out, deg, s, s_dash)
+    """
+    bonding pol in tchebyshev term
+    returns scalar, need to fill deg == 1 manually since it's unreachable
+    params:
+        - out, result storage, containing vector length = deg ∈ Real
+        - deg, maximum pol degree, scalar ∈ Int
+        - s, scalar ∈ Real
+        - s_dash, scalar ∈ Real
+    """
+    if deg == 1
+        out[deg] = s
+        return s
+    elseif deg == 2
+        out[deg] = s*(1-s)
+        return out[deg]
+        #return s*(1-s)
+    elseif deg == 3 # p_3 = s'p_2
+        out[deg] = s_dash*p_tchebyshev_pol(out, 2, s, s_dash)
+        return out[deg]
+        #return s_dash*p_tchebyshev_pol(2, s, s_dash)
+    elseif deg > 3 # p_{d+1} = s'p_d - p_{d-1}
+        out[deg] = s_dash*p_tchebyshev_pol(out, deg-1, s, s_dash) - p_tchebyshev_pol(out, deg-2, s, s_dash)
+        return out[deg]
+        #return s_dash*p_tchebyshev_pol(deg-1, s, s_dash) - p_tchebyshev_pol(deg-2, s, s_dash)
+    end
+end
+
+function f_b_feature(R, R_up, R_m, R_low, max_deg, e)
+    """
+    computes the primitive feature in terms of bonding polynomial (tchebyshev pol)
+    returns array, shape = (n_data, n_d, n_k), where n_k = max_deg
+    params:
+        - R, matrix of distances, shape = (n_data, n_d) ∈ Real
+        - R_up, R_m, R_low, tuning params, scalars ∈ Real 
+        - max_deg, e, hyperparams, scalars ∈ Real
+    """
+    n_data, n_d = size(R)
+    t0 = t_R_fun(R_m, R_up, R_low, e) # const
+    t = map(r -> t_R_fun(r, R_up, R_low, e), R) # matrix similar(R), iter = 1, map() is better
+    s = s_bond_strength.(R, R_up, R_low, t, t0) # matrix similar(R), iter > 1, vectorize is better 
+    s_dash = map(s_dash_f, s) # matrix similar(R)
+    b = Array{Float64}(undef, max_deg, n_data, n_d) # array (n_data, n_d, n_k)
+    n_data, n_d = size(R)
+    rg_d = 1:n_d; rg_data = 1:n_data
+    for j=rg_d
+        @simd for i = rg_data
+            @inbounds p_tchebyshev_pol((@view b[:,i,j]), max_deg, s[i,j], s_dash[i,j])
+        end
+    end
+    b[1,:,:] = s # fill the index 1 array manually, 
+    b = permutedims(b, [2,3,1])
+    return b
+end
+
+"""
+======================
+>>> Bonding features:  𝑈,𝑌(𝑧(𝑡),𝑓bump),𝐺(𝑧(𝑡),𝑓bump) <<<
+======================
 """
 function f_Y_coord(z_bump_mat, idxer)
     """
@@ -206,6 +406,7 @@ function f_Y_coord(z_bump_mat, idxer)
     """
     n_data, n_d, n_k = size(z_bump_mat); n_atom = size(idxer)[2]
     Y_mat = Array{Float64}(undef, (n_data, n_k, n_atom))
+    #Y_mat = zeros(n_data, n_k, n_atom)
     # 2-body sums for each atom:
     for i=1:n_atom
         atom_arr = @view z_bump_mat[:, idxer[:,i],:]
@@ -228,7 +429,7 @@ function f_Δcoord(X)
     rg_atom = 1:n_atom
     d = 1
     for i=rg_atom
-        for j=rg_atom
+        @simd for j=rg_atom
             if i<j
                 x_j = @view X[:,:,j]; x_i = @view X[:,:,i]
                 Δ[:,:,d] = x_j - x_i #X_j - X_i
@@ -268,7 +469,7 @@ function f_r_orient_vec(z_bump, Δ, idxer)
     temp_out = permutedims(temp_out, [1,2,4,3]) # move the op to the back
     @simd for i=1:n_atom
         atom_arr = @view temp_out[:,:,:,idxer[:,i]]
-        @inbounds rk[:,:,:,i] .= sum(atom_arr, dims=4)
+        @inbounds rk[:,:,:,i] = sum(atom_arr, dims=4)
     end
     return rk
 end
@@ -281,9 +482,7 @@ function f_G_mat(rk)
     params:
         - rk, array of orientation vectors, shape = (3, n_data, n_k, n_atom)
     """
-    n_elem, n_data, n_k, n_atom = size(rk)
-    #rk = permutedims(rk, [1,2,4,3]) # move op to last index
-    #G = Array{Float64}(undef, n_data, n_atom, n_k, n_k)
+    _, n_data, n_k, n_atom = size(rk)
     G = Array{Float64}(undef, n_data, n_k, n_k, n_atom)
     rg_k = 1:n_k
     for k1=rg_k
@@ -296,7 +495,6 @@ function f_G_mat(rk)
             end
         end
     end
-    #G = permutedims(G, [1,3,4,2]) # move n_atom to last
     return G
 end
 
@@ -327,6 +525,7 @@ function f_U_bas(R, idxer, arg_vref...)
     n_data = size(R)[1]; n_atom = size(idxer)[2]
     Vref = V_ref_pairpot.(R, arg_vref...)
     U = Matrix{Float64}(undef, n_data, n_atom)
+    #U = zeros(n_data, n_atom)
     @simd for i=1:n_atom
         Vsub = @view Vref[:, idxer[:,i]]
         U[:, i] = sum(Vsub, dims=2)
@@ -416,7 +615,9 @@ function f_Φ(U, Y, G, n_basis)
 end
 
 """
-=== Quadratic models
+===============
+>>> Quadratic models <<<
+===============
 """
 function f_A(θ, ϕ)
     """
@@ -476,48 +677,50 @@ function f_energy(Θ, Φ)
 end
 
 """
-=== Fun evals
+===============
+>>> Main fun evals for z and bumps <<<
+===============
 """
 function f_pot_bond(Θ, C, R_h, R_C, R_0, 
-                    R, X, 
-                    r_xy, N, n_atom, n_basis, 
-                    idxer, g::Float64=6.0)
+        R, X, 
+        r_xy, N, n_atom, n_basis, 
+        idxer, g=6)
     """
     function evaluation of V(.) using bonding features.
     returns V, vector of potential energy, shape = n_data ∈ Float64
     params:
-        - Θ, matrix of tuning parameters for the quadratic models, shape = (n_basis, 6) ∈ Float64
-        - C, R_h, R_C, R_0, tuning parameters for U basis, all scalars ∈ Float64
-        - R, matrix of distances, shape = (n_data, n_d) ∈ Float64
-        - X, array of atomic coordinates, shape = (n_data, n_atom, 3) ∈ Float64
-        - r_xy, fixed param, equilibrium distance of XY atomic pair, scalar ∈ Float64
-        - N, hyperparam, number of bump functions + 1, scalar ∈ Int
-        - n_atom, n_basis, self explanatory, scalar ∈ Int
-        - idxer, matrix of atomic indexes, shape = (n_atom-1, n_atom) ∈ Float64
-        - g, hyperparam for U, optional arg, scalar ∈ Float64
+    - Θ, matrix of tuning parameters for the quadratic models, shape = (n_basis, 6) ∈ Float64
+    - C, R_h, R_C, R_0, tuning parameters for U basis, all scalars ∈ Float64
+    - R, matrix of distances, shape = (n_data, n_d) ∈ Float64
+    - X, array of atomic coordinates, shape = (n_data, n_atom, 3) ∈ Float64
+    - r_xy, fixed param, equilibrium distance of XY atomic pair, scalar ∈ Float64
+    - N, hyperparam, number of bump functions + 1, scalar ∈ Int
+    - n_atom, n_basis, self explanatory, scalar ∈ Int
+    - idxer, matrix of atomic indexes, shape = (n_atom-1, n_atom) ∈ Float64
+    - g, hyperparam for U, optional arg, scalar ∈ Float64
     """
     # U, pair potential feature:
     U = f_U_bas(R, idxer, C, R_h, R_C, R_0, g)
-    
+
     # bump and coordination functions:
     zb = f_z_bump(R, r_xy, N)
-    
+
     # Coordination array:
     Y = f_Y_coord(zb, idxer)
-    
+
     # Δ matrix sub feature:
     Δ = f_Δcoord(X)
     # orientation vector sub feature:
     rk = f_r_orient_vec(zb, Δ, idxer)
     # Gram matrices feature:
     G = f_G_mat(rk)
-    
+
     # basis array:
     Φ = f_Φ(U, Y, G, n_basis)
-    
+
     # compute total energy:
     V = f_energy(Θ, Φ)
-    
+
     return V 
 end
 
@@ -530,7 +733,7 @@ function param_converter(ρ)
     π[2] = tlog(ρ[2])/20 # log(R_h)/20
     π[4] = tsqrt(ρ[4]) # sqrt(R_0)
     π[3] = tsqrt(ρ[3] - ρ[4]) # sqrt(R_C - R_0)
-    
+
     return π
 end
 
@@ -543,28 +746,125 @@ function param_inverter(ρ)
     π[2] = exp(20. * ρ[2]) # R_h
     π[4] = ρ[4]^2  # R_0
     π[3] = ρ[3]^2 + π[4] # R_C
-    
+
     return π
 end
-
 
 function f_eval_wrapper(Θ_vec, arg_f...)
     """
     wrapper for function evaluation, so that the tuning param is a long vector
     returns: V, vector of energy, shape = n_data
     params:
-        - Θ_vec, tuning parameters, vector, shape = n_basis*6 + 4
+    - Θ_vec, tuning parameters, vector, shape = n_basis*6 + 4
     """
     n_basis = arg_f[6]
     Θ = Matrix{Float64}(undef, n_basis, 6)
     for i=1:6
-        Θ[:, i] = Θ_vec[((i-1)*n_basis) + 1 : i*n_basis]
+    Θ[:, i] = Θ_vec[((i-1)*n_basis) + 1 : i*n_basis]
     end
     # convert then invert U parameters:
     ρ = param_converter(Θ_vec[[end-3, end-2, end-1, end]])
     C, R_h, R_C, R_0 = param_inverter(ρ)
     V = f_pot_bond(Θ, C, R_h, R_C, R_0, arg_f...)
-    return V
+    return vec(V) # convert to vector
+end
+
+"""
+===============
+>>> Main fun evals for Tche𝑏yshev bonding functions <<<
+===============
+"""
+function f_pot_bond_b(Θ, C, R_h, R_low, R_0, R_m, R_up, R_C, 
+        R, X, 
+        n_atom, n_basis, max_deg,
+        idxer, g=6, e=3)
+    """
+    function evaluation of V(.) using bonding features.
+    returns V, vector of potential energy, shape = n_data ∈ Real
+    params:
+    - Θ, matrix of tuning parameters for the quadratic models, shape = (n_basis, 6) ∈ Real
+    - C, R_h, R_C, R_0, tuning parameters for U basis, all scalars ∈ Real
+    - R, matrix of distances, shape = (n_data, n_d) ∈ Real
+    - X, array of atomic coordinates, shape = (n_data, n_atom, 3) ∈ Real
+    - r_xy, fixed param, equilibrium distance of XY atomic pair, scalar ∈ Real
+    - N, hyperparam, number of bump functions + 1, scalar ∈ Int
+    - n_atom, n_basis, self explanatory, scalar ∈ Int
+    - idxer, matrix of atomic indexes, shape = (n_atom-1, n_atom) ∈ Real
+    - g, hyperparam for U, optional arg, scalar ∈ Real
+    """
+    # U, pair potential feature:
+    U = f_U_bas(R, idxer, C, R_h, R_C, R_0, g)
+
+    # tchebyshev primitive feature:
+    b = f_b_feature(R, R_up, R_m, R_low, max_deg, e)
+
+    # Coordination array:
+    Y = f_Y_coord(b, idxer)
+
+    # Δ matrix sub feature:
+    Δ = f_Δcoord(X)
+    # orientation vector sub feature:
+    rk = f_r_orient_vec(b, Δ, idxer)
+
+    # Gram matrices feature:
+    G = f_G_mat(rk)
+
+    # basis array:
+    Φ = f_Φ(U, Y, G, n_basis)
+
+    # compute total energy:
+    V = f_energy(Θ, Φ)
+
+    return V 
+end
+
+function param_converter_b(ρ)
+    """
+    convert C, R_h, R_low, R_m, R_0, R_up, R_C, to unconstrained
+    """
+    π = Vector{Float64}(undef, length(ρ))
+    π[1] = tlog(ρ[1])/20 # log(C)/20
+    π[2] = tlog(ρ[2])/20 # log(R_h)/20
+    π[3] = tsqrt(ρ[3]) # sqrt(R_low)
+    π[4] = tsqrt(ρ[4] - ρ[3]) # sqrt(R_0 - R_low)
+    π[5] = tsqrt(ρ[5] - ρ[4]) # sqrt(R_m - R_0)
+    π[6] = tsqrt(ρ[6] - ρ[5]) # sqrt(R_up - R_m)
+    π[7] = tsqrt(ρ[7] - ρ[6]) # sqrt(R_C - R_up)
+    return π
+end
+
+function param_inverter_b(ρ)
+    """
+    revert C, R_h, R_low, R_m, R_0, R_up, R_C, to initial, comply to R_h ≤ R_low ≤ R_0 ≤ R_m ≤ R_up ≤ R_C
+    """
+    π = Vector{Float64}(undef, length(ρ))
+    π[1] = exp(20. * ρ[1]) # C
+    π[2] = exp(20. * ρ[2]) # R_h
+    π[3] = ρ[3]^2 # R_low
+    π[4] = ρ[4]^2 + π[3] # R_0
+    π[5] = ρ[5]^2 + π[4] # R_m
+    π[6] = ρ[6]^2 + π[5] # R_up
+    π[7] = ρ[7]^2 + π[6] # R_C
+    return π
+end
+
+function f_eval_wrapper_b(Θ_vec, arg_f...)
+    """
+    wrapper for function evaluation, so that the tuning param is a long vector
+    returns: V, vector of energy, shape = n_data
+    params:
+    - Θ_vec, tuning parameters, vector, shape = n_basis*6 + 7
+    """
+    n_basis = arg_f[4]
+    Θ = Matrix{Float64}(undef, n_basis, 6)
+    for i=1:6
+    Θ[:, i] = Θ_vec[((i-1)*n_basis) + 1 : i*n_basis]
+    end
+    # convert then invert U parameters:
+    ρ = param_converter_b(Θ_vec[end-6:end])
+    C, R_h, R_low, R_0, R_m, R_up, R_C = param_inverter_b(ρ)
+    V = f_pot_bond_b(Θ, C, R_h, R_low, R_0, R_m, R_up, R_C, arg_f...)
+    return vec(V) # convert to vector
 end
 
 
@@ -641,4 +941,131 @@ function opttest()
     end
 end
 
-opttest()
+function opttest2()
+    n_atom, n_basis, g, e = (3, 59, 6, 3)
+    r_xy, N, max_deg = (1.4172946, 5, 5)
+    idxer = atom_indexer(n_atom)
+
+    H_datat = readdlm("data/h3/h3_data.txt")
+    # load atomic coordinates:
+    Xt = npzread("data/h3/h3_coord.npy")
+    Rt = H_datat[:,1:end-1]; Vt = H_datat[:, end]
+    siz = 100
+    sub_Rt = Rt[1:siz,:];
+    sub_Vt = Vt[1:siz];
+    sub_Xt = Xt[1:siz, :, :];
+    Θ_vec = rand(Distributions.Uniform(-1.,1.), n_basis*6 + 7)
+    #Θ_vec = ones(n_basis*6 + 7)
+    #Θ_vec[end-6:end] = [1., 0.01, 0.02, 0.5, .9, 10., 11.]
+    """
+    Θ_opt = readdlm("params/h3/c_params_060422_full_fold1_5e-4_5e-3_umaxabs.out")
+    # >>> parameter correspondence to py ver!! <<<:
+    temp = Θ_opt[1:7]
+    Θ_opt[1:end-7] = Θ_opt[8:end]
+    Θ_opt[end-6:end] = temp
+    """
+    V = f_eval_wrapper_b(Θ_vec, sub_Rt, sub_Xt, n_atom, n_basis, max_deg, idxer, g, e)
+    println(V)
+    f_least_squares(f_eval_wrapper_b, sub_Vt, Θ_vec, sub_Rt, sub_Xt, n_atom, n_basis, max_deg, idxer, g, e)
+
+    # test direct optimization!!:
+    """
+    # bumps:
+    res = optimize(Θ -> f_least_squares(f_eval_wrapper, sub_V, Θ, sub_R, sub_X, 
+                                        r_xy, N, n_atom, n_basis, idxer, g),
+                    Θ_vec, LBFGS(m=10),
+                    Optim.Options(iterations = 5, show_trace=true);
+                    #autodiff = :forward
+                    )
+    # tchebyshev:
+    res = optimize(Θ -> f_least_squares(f_eval_wrapper_b, sub_Vt, 
+                                        Θ_vec, sub_Rt, sub_Xt, n_atom, n_basis, max_deg, idxer, g, e),
+                    Θ_vec,
+                    Optim.Options(iterations = 100, show_trace=true);
+                    autodiff = :forward
+                    )
+    # NLS solver:
+    
+    """
+    #res = LsqFit.curve_fit((R_train, θ) -> f_ratpot_2(θ, R_train, M), J_f, R_train, V_train, θ, show_trace=false, maxIter=100)
+    res = LsqFit.curve_fit((R, θ) -> f_eval_wrapper_b(θ, R, sub_Xt, n_atom, n_basis, max_deg, idxer, g, e),
+                            sub_Rt, sub_Vt, Θ_vec, show_trace=true, maxIter=100)
+    # save res to file:
+    #writedlm("minimizer_H3_50data.csv", res.minimizer)
+    #x = readdlm("minimizer_H3_50data.csv", '\t')
+    V_pred = f_eval_wrapper(res.param, sub_Rt, sub_Xt, r_xy, N, n_atom, n_basis, idxer, g)
+    println(f_RMSE(sub_Vt, V_pred))
+    for i=1:length(sub_Vt)
+        println(sub_Vt[i]," ",V_pred[i])
+    end
+end
+
+function multirestart()
+    n_atom, n_basis, g, e = (3, 59, 6, 3)
+    r_xy, N, max_deg = (1.4172946, 5, 5)
+    idxer = atom_indexer(n_atom)
+
+    H_datat = readdlm("data/h3/h3_data.txt")
+    # load atomic coordinates:
+    Xt = npzread("data/h3/h3_coord.npy")
+    Rt = H_datat[:,1:end-1]; Vt = H_datat[:, end]
+    siz = 100
+    sub_Rt = Rt[1:siz,:];
+    sub_Vt = Vt[1:siz];
+    sub_Xt = Xt[1:siz, :, :];
+    Θ_vec = rand(Distributions.Uniform(-1.,1.), n_basis*6 + 7)
+
+    restarts = Int(10)
+    min_rmse = Inf
+    Θ_min = zeros(length(Θ_vec))
+    V_pred = f_eval_wrapper_b(Θ_vec, sub_Rt, sub_Xt, n_atom, n_basis, max_deg, idxer, g, e);
+    @simd for iter=1:restarts
+        # precheck nan:
+        while any(isnan.(V_pred)) # reset until no nan:
+            println("resetting NaNs!!")
+            Θ_vec = rand(Distributions.Uniform(-1.,1.), n_basis*6 + 7)
+            """
+            res = optimize(Θ -> f_least_squares(f_eval_wrapper_b, sub_Vt, 
+                                                Θ_vec, sub_Rt, sub_Xt, n_atom, n_basis, max_deg, idxer, g, e),
+                            Θ_vec,
+                            Optim.Options(iterations = 1000, show_trace=false);
+                            #autodiff = :forward
+                            )
+            """
+            res = LsqFit.curve_fit((R, θ) -> f_eval_wrapper_b(θ, R, sub_Xt, n_atom, n_basis, max_deg, idxer, g, e),
+                            sub_Rt, sub_Vt, Θ_vec, show_trace=false, maxIter=2)
+            V_pred = f_eval_wrapper_b(res.param, sub_Rt, sub_Xt, n_atom, n_basis, max_deg, idxer, g, e)
+        end
+        # optimize
+        Θ_vec = rand(Distributions.Uniform(-1.,1.), n_basis*6 + 7)
+        """
+        res = optimize(Θ -> f_least_squares(f_eval_wrapper_b, sub_Vt, 
+                                                Θ_vec, sub_Rt, sub_Xt, n_atom, n_basis, max_deg, idxer, g, e),
+                            Θ_vec,
+                            Optim.Options(iterations = 1000, show_trace=false);
+                            #autodiff = :forward
+                            )
+        """
+        res = LsqFit.curve_fit((R, θ) -> f_eval_wrapper_b(θ, R, sub_Xt, n_atom, n_basis, max_deg, idxer, g, e),
+                            sub_Rt, sub_Vt, Θ_vec, show_trace=false, maxIter=1000)
+        V_pred = f_eval_wrapper_b(res.param, sub_Rt, sub_Xt, n_atom, n_basis, max_deg, idxer, g, e)
+        # sort RMSE:
+        rmse = f_RMSE(sub_Vt, V_pred)
+        println("optimized, restart = ",iter," rmse = ",rmse)
+        if rmse < min_rmse
+            println("better rmse found!, rmse = ", rmse)
+            min_rmse = rmse
+            Θ_min = res.param
+        end
+    end
+    writedlm("minimizer_H3_100data.csv", Θ_min)
+    x = readdlm("minimizer_H3_100data.csv", '\t')
+    V_pred = f_eval_wrapper_b(x, sub_Rt, sub_Xt, n_atom, n_basis, max_deg, idxer, g, e)
+    for i=1:length(sub_Vt)
+        println(sub_Vt[i]," ",V_pred[i])
+    end
+    println(min_rmse)
+end
+
+multirestart()
+
