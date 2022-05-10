@@ -1019,7 +1019,7 @@ function multirestart()
     min_rmse = Inf
     Θ_min = zeros(length(Θ_vec))
     V_pred = f_eval_wrapper_b(Θ_vec, sub_Rt, sub_Xt, n_atom, n_basis, max_deg, idxer, g, e);
-    @simd for iter=1:restarts
+    for iter=1:restarts
         # precheck nan:
         while any(isnan.(V_pred)) # reset until no nan:
             println("resetting NaNs!!")
@@ -1067,5 +1067,5 @@ function multirestart()
     println(min_rmse)
 end
 
-multirestart()
+#multirestart()
 
