@@ -1,6 +1,6 @@
 using Optim, LsqFit, NLsolve # opt libs
 using LinearAlgebra # self explanatory
-using Zygote, ReverseDiff, ForwardDiff # autodiff
+using Zygote, ReverseDiff, ForwardDiff, Enzyme # autodiff
 using Plots, LaTeXStrings # plots
 using StatsBase, DataStructures, MLUtils, StaticArrays # data processing utils
 using Distributions # sampling distributions
