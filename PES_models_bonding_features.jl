@@ -429,7 +429,7 @@ params:
 !! works for ReverseDiff/Zygote, the problem was mutating arrays, means something like x = Array{Float64}(undef, <sizes>), and changing the values inside the function!!
 """
 function f_RATPOT_u(θ, p_pol)
-    u = p_pol*θ[2:end] .+ θ[1] #∑p_l(q)θ_l, p degree d, length of θ = d+1
+    u = p_pol * θ[2:end] .+ θ[1] #∑p_l(q)θ_l, p degree d, length of θ = d+1
     return u
 end
 
@@ -1057,7 +1057,7 @@ function opttest2()
     #res = LsqFit.curve_fit((R_train, θ) -> f_ratpot_2(θ, R_train, M), J_f, R_train, V_train, θ, show_trace=false, maxIter=100)
     res = LsqFit.curve_fit((R, θ) -> f_eval_wrapper_b(θ, R, sub_Xt, n_atom, n_basis, max_deg, idxer, g, e),
                             sub_Rt, sub_Vt, Θ_vec, show_trace=false, maxIter=100)
-                            
+
     V_pred = f_eval_wrapper(res.param, sub_Rt, sub_Xt, r_xy, N, n_atom, n_basis, idxer, g)
     println(f_RMSE(sub_Vt, V_pred))
     for i=1:length(sub_Vt)
