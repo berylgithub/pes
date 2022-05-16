@@ -434,6 +434,17 @@ function f_RATPOT_u(θ, p_pol)
 end
 
 """
+version with scaler as denominator, makes use of multi-dispatcher, observe the param overload!!
+addition params:
+    - ρ, vector, length = n_data
+    - e_pow, scalar
+"""
+function f_RATPOT_u(θ, p_pol, ρ, e_pow)
+    return (p_pol * θ[2:end] .+ θ[1]) ./ (1 .+ (ρ .^ (e_pow - 1)))
+end
+
+
+"""
 unalloc ver
 """
 function f_RATPOT_u!(u, θ, p_pol)
@@ -451,7 +462,6 @@ params:
 function v_RATPOT_u(θ, p_pol, ρ, e_pow)
     return f_RATPOT_u(θ, p_pol) ./ (ρ .+ (ρ .^ e_pow))
 end
-
 
 
 """
