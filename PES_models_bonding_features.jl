@@ -443,7 +443,6 @@ function f_RATPOT_u(θ, p_pol, ρ, e_pow)
     return (p_pol * θ[2:end] .+ θ[1]) ./ (1 .+ (ρ .^ (e_pow - 1)))
 end
 
-
 """
 unalloc ver
 """
@@ -461,6 +460,67 @@ params:
 """
 function v_RATPOT_u(θ, p_pol, ρ, e_pow)
     return f_RATPOT_u(θ, p_pol) ./ (ρ .+ (ρ .^ e_pow))
+end
+
+
+"""
+================
+BUMP feature
+================
+"""
+f_q_bump(N, ρ) = N ./ (1 .+ ρ) # ∈ (0, N], the ρ is from the ratpot function block
+f_i(q) = ceil.(q) # ≥ 1
+f_ϵ(i, q) = i .- q # ∈ (0, 1]
+f_α(ϵ) = (ϵ .* (2 .- ϵ)) .^ 3
+f_β(ϵ) = (1 .- (ϵ .^ 2)) .^ 3
+
+# scalar ops:
+f_u_bump(θ, q, α, β, i, N) = (θ[i-1]*q + θ[i+N])*α + (θ[i] + θ[i+N+1])*β # u(q), θ here is an element (scalar) of the actual θ vector
+f_w_bump(α, β) = α + β # w(q)
+
+"""
+simple scalar ver operation of h_k, all params and output are scalars
+"""
+function f_h_k(k, i, α, β)
+    h = 0.
+    if k == i-1
+        h = α
+    elseif k == i
+        h = β
+    end
+    return h
+end
+
+f_h_k(q, k) = abs.((1 .- (q .- k).^2).^3) # another dispatch of f_h_k, vec ver, the fundamental function
+
+"""
+computes all primitive features,
+params:
+    - ...
+"""
+function compute_u_w_h!(u, w, h, θ, q, α, β, i, N)
+    @simd for el ∈ 1:length(i)
+        @inbounds u[el] = f_u_bump(θ, q[el], α[el], β[el], Int(i[el])+1, N) #shift theta by +1, for indexing
+        @inbounds w[el] = f_w_bump(α[el], β[el])
+        @simd for k ∈ 0:N
+            @inbounds h[k+1, el] = f_h_k(k, i[el], α[el], β[el])
+        end
+    end
+end
+
+"""
+computes V = (u/w) / (ρ + ρ^k)
+params:
+    - u, w, ρ: for diatomic: vectors, length = n_data; for >2atoms: matrix, size = (n_data, n_d) ∈ Float64  
+"""
+function v_BUMP_di(θ, ρ, q, α, β, i, e_pow)
+    u = zeros(size(q)[1])
+    w = similar(u)
+    @simd for el ∈ 1:length(i)
+        @inbounds u[el] = f_u_bump(θ, q[el], α[el], β[el], Int(i[el])+1, N) #shift theta by +1, for indexing
+        @inbounds w[el] = f_w_bump(α[el], β[el])
+    end
+    return (u ./ w) ./ (ρ .+ (ρ .^ e_pow))
 end
 
 
