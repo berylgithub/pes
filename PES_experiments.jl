@@ -61,8 +61,8 @@ enumerate all k = 1:6 × data: [H2, OH+] × method: [RATPOTu, RATPOTu_scale1, RA
 """
 function ratpot_exp()
     # data op:
-    homedir = "/users/baribowo/Code/Python/pes/"
-    H_data = readdlm(homedir*"data/diatomic/h2_ground_w.txt")
+    #homedir = "/users/baribowo/Code/Python/pes/"
+    H_data = readdlm("data/diatomic/h2_ground_w.txt")
     #H_data = readdlm("data/diatomic/oh+_data.txt")
     R = H_data[:, 1]; V = H_data[:, 2]
     Xs, Ys = shuffleobs((R, V))
@@ -70,11 +70,44 @@ function ratpot_exp()
     R_train = copy(train_data[1]); V_train = copy(train_data[2]);
     R_test = copy(test_data[1]); V_test = copy(test_data[2]);
 
-    df = DataFrame(pow=[], RAT=[], RAT1=[], RAT2=[], BUMP=[])
+    # hyperparam:
+    const_r_xy = 1.4172946 # H2
+    max_tcheb_deg = 5;
+
+    # tuning param:
+    ub = 1.; lb = -1.;
+    θ_r = rand(max_tcheb_deg+1) .* (ub-lb) .+ lb;
+
+    # storage:
+    df_train = DataFrame(power=[], RAT=[], RAT1=[], RAT2=[], BUMP=[])
+    df_test = DataFrame(power=[], RAT=[], RAT1=[], RAT2=[], BUMP=[])
+
+    # one-time computations, for RAT:
+    ρ = f_ρ(R_train, const_r_xy)
+    q = f_q(ρ)
+    p_pol = f_tcheb_u(q, max_tcheb_deg)
+
+    # one-time comp for BUMP:
+
+    # repeated computations:
     for e_pow ∈ 1:6
-        push!(df, Dict(:pow => e_pow, :RAT => rand(1), :RATrand(1), rand(1), rand(1)))
+        # RATPOT default:
+        res = LsqFit.curve_fit((p_pol, θ) -> v_RATPOT_u(θ, p_pol, ρ, e_pow), p_pol, V_train, θ_r, show_trace=false, maxIter=500)
+        V_pred = v_RATPOT_u(res.param, p_pol, ρ, e_pow)
+        rmse_r = f_RMSE(V_train, V_pred)
+        # RATPOT scale 1:
+        V_train_tr = V_train .* (ρ .+ (ρ .^ e_pow))
+        res = LsqFit.curve_fit((p_pol, θ) -> f_RATPOT_u(θ, p_pol), p_pol, V_train_tr, θ_r, show_trace=false, maxIter=500)
+        V_pred = f_RATPOT_u(res.param, p_pol)
+        rmse_r1 = f_RMSE(V_train_tr, V_pred)
+        # RATPOT scale 2:
+        V_train_tr = V_train .* ρ
+        res = LsqFit.curve_fit((p_pol, θ) -> f_RATPOT_u(θ, p_pol, ρ, e_pow), p_pol, V_train_tr, θ_r, show_trace=false, maxIter=500)
+        V_pred = f_RATPOT_u(res.param, p_pol, ρ, e_pow)
+        rmse_r2 = f_RMSE(V_train_tr, V_pred)
+        push!(df_train, Dict(:power => e_pow, :RAT => rmse_r, :RAT1 => rmse_r1, :RAT2 => rmse_r2, :BUMP => rand(1)))
     end
-    CSV.write(homedir*"dftest.csv", df)
-    df = CSV.read(homedir*"dftest.csv", DataFrame)
-    println(df)
+    CSV.write("df_train.csv", df_train)
+    df_train = CSV.read("df_train.csv", DataFrame)
+    println(df_train)
 end
