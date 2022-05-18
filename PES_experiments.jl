@@ -55,6 +55,17 @@ function ratpot_u_test()
     println(f_RMSE(V_pred, V_test_tr))
 end
 
-function ()
-    readdlm("data/oh+_data.txt")
+"""
+enumerate all k = 1:6 × data: [H2, OH+] × method: [RATPOTu, RATPOTu_scale1, RATPOTu_scale2, v_BUMP]
+"""
+function ratpot_exp()
+    # test using H2
+    H_data = readdlm("data/diatomic/h2_ground_w.txt")
+    #H_data = readdlm("data/diatomic/oh+_data.txt")
+
+    R = H_data[:, 1]; V = H_data[:, 2]
+    Xs, Ys = shuffleobs((R, V))
+    train_data, test_data = splitobs((Xs, Ys); at=0.8)
+    R_train = copy(train_data[1]); V_train = copy(train_data[2]);
+    R_test = copy(test_data[1]); V_test = copy(test_data[2]);
 end
