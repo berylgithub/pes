@@ -1,4 +1,5 @@
 include("PES_models_bonding_features.jl")
+using DataFrames, CSV
 
 """
 this should be where experiments are done, to avoid clutter in ipynb
@@ -59,13 +60,21 @@ end
 enumerate all k = 1:6 × data: [H2, OH+] × method: [RATPOTu, RATPOTu_scale1, RATPOTu_scale2, v_BUMP]
 """
 function ratpot_exp()
-    # test using H2
-    H_data = readdlm("data/diatomic/h2_ground_w.txt")
+    # data op:
+    homedir = "/users/baribowo/Code/Python/pes/"
+    H_data = readdlm(homedir*"data/diatomic/h2_ground_w.txt")
     #H_data = readdlm("data/diatomic/oh+_data.txt")
-
     R = H_data[:, 1]; V = H_data[:, 2]
     Xs, Ys = shuffleobs((R, V))
     train_data, test_data = splitobs((Xs, Ys); at=0.8)
     R_train = copy(train_data[1]); V_train = copy(train_data[2]);
     R_test = copy(test_data[1]); V_test = copy(test_data[2]);
+
+    df = DataFrame(pow=[], RAT=[], RAT1=[], RAT2=[], BUMP=[])
+    for e_pow ∈ 1:6
+        push!(df, Dict(:pow => e_pow, :RAT => rand(1), :RATrand(1), rand(1), rand(1)))
+    end
+    CSV.write(homedir*"dftest.csv", df)
+    df = CSV.read(homedir*"dftest.csv", DataFrame)
+    println(df)
 end

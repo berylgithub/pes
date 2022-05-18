@@ -474,8 +474,12 @@ f_ϵ(i, q) = i .- q # ∈ (0, 1]
 f_α(ϵ) = (ϵ .* (2 .- ϵ)) .^ 3
 f_β(ϵ) = (1 .- (ϵ .^ 2)) .^ 3
 
+# for g exclusive:
+f_d(q, k) = q .- k 
+
 # scalar ops:
-f_u_bump(θ, q, α, β, i, N) = (θ[i-1]*q + θ[i+N])*α + (θ[i] + θ[i+N+1])*β # u(q), θ here is an element (scalar) of the actual θ vector
+#f_u_bump(θ, q, α, β, i, N) = (θ[i-1]*q + θ[i+N])*α + (θ[i]*q + θ[i+N+1])*β # u(q), θ here is an element (scalar) of the actual θ vector
+f_u_bump(θ, q, α, β, i, N) = (θ[i-1]*(q-i+1) + θ[i+N])*α + (θ[i]*(q-i) + θ[i+N+1])*β
 f_w_bump(α, β) = α + β # w(q)
 
 """
@@ -491,12 +495,18 @@ function f_h_k(k, i, α, β)
     return h
 end
 
-f_h_k(q, k) = abs.((1 .- (q .- k).^2).^3) # another dispatch of f_h_k, vec ver, the fundamental function
+f_h_k(q, k) = abs.((1 .- (q .- k).^2).^3) # another dispatch, vec ver, the fundamental function
+
 
 """
-computes all primitive features,
+computes primitive features,
+outputs:
+    - u, w, vector, size = n_data
+    - h, matrix, size = (N+1, n_data)
 params:
-    - ...
+    - θ, vector, size = N+1
+    - q, α, β, i, vectors, size = n_data
+    - N, scalar
 """
 function compute_u_w_h!(u, w, h, θ, q, α, β, i, N)
     @simd for el ∈ 1:length(i)
@@ -507,6 +517,54 @@ function compute_u_w_h!(u, w, h, θ, q, α, β, i, N)
         end
     end
 end
+
+"""
+computes features: h/w and g/w
+outputs:
+    - x contains h/w, y contains g/w, size(x) = size(y), matrix, size = (N+1, n_data)
+params:
+    - h, matrix, size = (N+1, n_data)
+    - q, vector, size = n_data
+    - N, scalar ∈ Int
+"""
+function compute_hw_gw!(x, y, h, q, N)
+    @simd for k ∈ 1:N+1
+        @inbounds x[k, :] = (@view h[k, :]) ./ w # h./w try vs default
+        @inbounds y[k, :] = (q .- (k-1)) .* (@view x[k, :]) # matrix for z:=(q .- (k - 1)) then z.*x
+    end
+end
+
+"""
+computes features: h/w and g/w
+unrolled loop ver:
+function compute_hw_gw!(x, y, h, q, N)
+    n_data = size(q)[1]
+    @simd for j ∈ 1:n_data
+        @simd for k ∈ 1:N+1
+            @inbounds x[k, j] = h[k, j] / w[j] # h./w try vs default
+            @inbounds y[k, j] = (q[j] - (k-1)) * x[k, j] # matrix for z:=(q .- (k - 1)) then z.*x
+        end
+    end
+end
+"""
+
+"""
+computes features: h/w and g/w, v2, where y is computed from g
+params:
+    - ...
+"""
+function compute_hw_gw2!(x, y, h, q, i, N)
+    @simd for k ∈ 1:N+1
+        @inbounds x[k, :] = (@view h[k, :]) ./ w
+        # for g ⟹ y:
+        @inbounds d = f_d(q, k-1)
+        #@inbounds γ = d.*α
+        #@inbounds δ = d.*β
+        #@inbounds g = f_h_k.(k-1, i, γ, δ)
+        @inbounds y[k, :] = f_h_k.(k-1, i, d.*α, d.*β) ./ w
+    end
+end
+
 
 """
 computes V = (u/w) / (ρ + ρ^k)
@@ -523,6 +581,7 @@ function v_BUMP_di(θ, ρ, q, α, β, i, e_pow)
     return (u ./ w) ./ (ρ .+ (ρ .^ e_pow))
 end
 
+# plot basic features: [h_k(q)/w(q), q*h_k(q)/w(q)]
 
 """
 ======================
