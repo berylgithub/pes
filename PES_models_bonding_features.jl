@@ -571,7 +571,7 @@ computes V = (u/w) / (ρ + ρ^k)
 params:
     - u, w, ρ: for diatomic: vectors, length = n_data; for >2atoms: matrix, size = (n_data, n_d) ∈ Float64  
 """
-function v_BUMP_di(θ, ρ, q, α, β, i, e_pow)
+function v_BUMP_di(θ, ρ, q, α, β, i, N, e_pow)
     u = zeros(size(q)[1])
     w = similar(u)
     @simd for el ∈ 1:length(i)
@@ -580,8 +580,6 @@ function v_BUMP_di(θ, ρ, q, α, β, i, e_pow)
     end
     return (u ./ w) ./ (ρ .+ (ρ .^ e_pow))
 end
-
-# plot basic features: [h_k(q)/w(q), q*h_k(q)/w(q)]
 
 """
 ======================
