@@ -62,8 +62,8 @@ enumerate all k = 1:6 × data: [H2, OH+] × method: [RATPOTu, RATPOTu_scale1, RA
 function ratpot_exp()
     # data op:
     #homedir = "/users/baribowo/Code/Python/pes/"
-    H_data = readdlm("data/diatomic/h2_ground_w.txt")
-    #H_data = readdlm("data/diatomic/oh+_data.txt")
+    #H_data = readdlm("data/diatomic/h2_ground_w.txt")
+    H_data = readdlm("data/diatomic/oh+_data.txt")
     R = H_data[:, 1]; V = H_data[:, 2]
     Xs, Ys = shuffleobs((R, V))
     train_data, test_data = splitobs((Xs, Ys); at=0.8)
@@ -72,7 +72,8 @@ function ratpot_exp()
 
     # hyperparam:
     ## RAT:
-    const_r_xy = 1.4172946 # H2
+    #const_r_xy = 1.4172946 # H2
+    const_r_xy = 1.9369 #OH+
     max_tcheb_deg = 5;
     ## BUMP:
     N = 5
@@ -121,7 +122,7 @@ function ratpot_exp()
         # push result:
         push!(df_train, Dict(:power => e_pow, :RAT => rmse_r, :RAT1 => rmse_r1, :RAT2 => rmse_r2, :BUMP => rmse_b))
     end
-    CSV.write("df_train.csv", df_train)
-    df_train = CSV.read("df_train.csv", DataFrame)
+    CSV.write("df_train_OH+.csv", df_train)
+    df_train = CSV.read("df_train_OH+.csv", DataFrame)
     println(df_train)
 end
