@@ -512,14 +512,17 @@ function compute_u_w_h!(u, w, h, θ, q, α, β, i, N)
     @simd for el ∈ 1:length(i)
         @inbounds u[el] = f_u_bump(θ, q[el], α[el], β[el], Int(i[el])+1, N) #shift theta by +1, for indexing
         @inbounds w[el] = f_w_bump(α[el], β[el])
-        @simd for k ∈ 0:N
-            @inbounds h[k+1, el] = f_h_k(k, i[el], α[el], β[el])
+    end
+    @simd for k ∈ 0:N
+        @simd for el ∈ 1:length(i)
+            @inbounds h[el, k+1] = f_h_k(k, i[el], α[el], β[el])
         end
     end
 end
 
 """
 computes features: h/w and g/w
+unrolled loop ver
 outputs:
     - x contains h/w, y contains g/w, size(x) = size(y), matrix, size = (N+1, n_data)
 params:
@@ -527,26 +530,15 @@ params:
     - q, vector, size = n_data
     - N, scalar ∈ Int
 """
-function compute_hw_gw!(x, y, h, q, N)
-    @simd for k ∈ 1:N+1
-        @inbounds x[k, :] = (@view h[k, :]) ./ w # h./w try vs default
-        @inbounds y[k, :] = (q .- (k-1)) .* (@view x[k, :]) # matrix for z:=(q .- (k - 1)) then z.*x
-    end
-end
-
-"""
-computes features: h/w and g/w
-unrolled loop ver:
-function compute_hw_gw!(x, y, h, q, N)
+function compute_hw_gw!(x, y, w, h, q, N)
     n_data = size(q)[1]
-    @simd for j ∈ 1:n_data
-        @simd for k ∈ 1:N+1
-            @inbounds x[k, j] = h[k, j] / w[j] # h./w try vs default
-            @inbounds y[k, j] = (q[j] - (k-1)) * x[k, j] # matrix for z:=(q .- (k - 1)) then z.*x
+    @simd for k ∈ 1:N+1
+        @simd for j ∈ 1:n_data
+            @inbounds x[j, k] = h[j, k] / w[j] # h./w try vs default
+            @inbounds y[j, k] = (q[j] - (k-1)) * x[j, k] # matrix for z:=(q .- (k - 1)) then z.*x
         end
     end
 end
-"""
 
 """
 computes features: h/w and g/w, v2, where y is computed from g
@@ -565,7 +557,6 @@ function compute_hw_gw2!(x, y, h, q, i, N)
     end
 end
 
-
 """
 computes V = (u/w) / (ρ + ρ^k)
 params:
@@ -579,6 +570,29 @@ function v_BUMP_di(θ, ρ, q, α, β, i, N, e_pow)
         @inbounds w[el] = f_w_bump(α[el], β[el])
     end
     return (u ./ w) ./ (ρ .+ (ρ .^ e_pow))
+end
+
+"""
+main block computation for the new LC bump features
+params:
+    - R, matrix of distances, size = (n_data, n_d)
+"""
+function BUMP_feature(R, r_xy, N)
+    ρ = f_ρ(R_train, const_r_xy)
+    q = f_q_bump(N, ρ)
+    i = f_i(q)
+    ϵ = f_ϵ(i, q)
+    α = f_α(ϵ)
+    β = f_β(ϵ)
+
+    # compute primitives, u,w,h:
+    n_data, n_d = size(R)
+    u = similar(R) # this will be used for U basis
+    w = similar(u)
+    h = zeros(N+1, n_data, n_d) # stores the main sub primitive
+    compute_u_w_h!(u, w, h, θ, q, α, β, i, N)
+
+
 end
 
 """
