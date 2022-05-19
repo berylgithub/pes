@@ -521,6 +521,68 @@ function compute_u_w_h_diat!(u, w, h, θ, q, α, β, i, N)
 end
 
 """
+computes features: h/w and g/w
+unrolled loop ver
+outputs:
+    - x contains h/w, y contains g/w, size(x) = size(y), matrix, size = (N+1, n_data)
+params:
+    - h, matrix, size = (N+1, n_data)
+    - q, vector, size = n_data
+    - N, scalar ∈ Int
+"""
+function compute_hw_gw_diat!(x, y, w, h, q, N)
+    n_data = size(q)[1]
+    @simd for k ∈ 1:N+1
+        @simd for j ∈ 1:n_data
+            @inbounds x[j, k] = h[j, k] / w[j] # h./w try vs default
+            @inbounds y[j, k] = (q[j] - (k-1)) * x[j, k] # matrix for z:=(q .- (k - 1)) then z.*x
+        end
+    end
+end
+
+"""
+computes features: h/w and g/w, v2, where y is computed from g
+params:
+    - ...
+"""
+function compute_hw_gw2_diat2!(x, y, h, q, i, N)
+    @simd for k ∈ 1:N+1
+        @inbounds x[k, :] = (@view h[k, :]) ./ w
+        # for g ⟹ y:
+        @inbounds d = f_d(q, k-1)
+        #@inbounds γ = d.*α
+        #@inbounds δ = d.*β
+        #@inbounds g = f_h_k.(k-1, i, γ, δ)
+        @inbounds y[k, :] = f_h_k.(k-1, i, d.*α, d.*β) ./ w
+    end
+end
+
+"""
+computes V = (u/w) / (ρ + ρ^k) for diatomic
+params:
+    - u, w, ρ: for diatomic: vectors, length = n_data; for >2atoms: matrix, size = (n_data, n_d) ∈ Float64  
+"""
+function v_BUMP_di(θ, ρ, q, α, β, i, N, e_pow)
+    u = zeros(size(q)[1])
+    w = similar(u)
+    @simd for el ∈ 1:length(i)
+        @inbounds u[el] = f_u_bump(θ, q[el], α[el], β[el], Int(i[el])+1, N) #shift theta by +1, for indexing
+        @inbounds w[el] = f_w_bump(α[el], β[el])
+    end
+    return (u ./ w) ./ (ρ .+ (ρ .^ e_pow))
+end
+
+"""
+other dispatch, 
+params: 
+    - u, w, ρ, matrix = similar(R)
+    - e_pow, scalar
+"""
+function v_BUMP_di(u, w, ρ, e_pow)
+    return (u ./ w) ./ (ρ .+ (ρ .^ e_pow))
+end
+
+"""
 computes primitive features, for atom > 2
 unrolled version, C++ like syntax and speed
 outputs:
@@ -549,79 +611,61 @@ function compute_u_w_h!(u, w, h, θ, q, α, β, i, N)
 end
 
 """
-computes features: h/w and g/w
+computes features: h/w and g/w, for atom > 2
 unrolled loop ver
 outputs:
-    - x contains h/w, y contains g/w, size(x) = size(y), matrix, size = (N+1, n_data)
+    - x contains h/w, y contains g/w, size(x) = size(y), array, size = (n_data, n_d, N+1)
 params:
-    - h, matrix, size = (N+1, n_data)
-    - q, vector, size = n_data
+    - h, array, size = (n_data, n_d, N+1)
+    - w, matrix, size = (n_data, n_d)
+    - q, matrix, size = (n_data, n_d)
     - N, scalar ∈ Int
 """
 function compute_hw_gw!(x, y, w, h, q, N)
-    n_data = size(q)[1]
+    n_data, n_d = size(q)
     @simd for k ∈ 1:N+1
-        @simd for j ∈ 1:n_data
-            @inbounds x[j, k] = h[j, k] / w[j] # h./w try vs default
-            @inbounds y[j, k] = (q[j] - (k-1)) * x[j, k] # matrix for z:=(q .- (k - 1)) then z.*x
+        @simd for d ∈ 1:n_d
+            @simd for j ∈ 1:n_data
+                @inbounds x[j, d, k] = h[j, d, k] / w[j, d] # h./w try vs default
+                @inbounds y[j, d, k] = (q[j, d] - (k-1)) * x[j, d, k] # matrix for z:=(q .- (k - 1)) then z.*x
+            end
         end
     end
 end
 
 """
-computes features: h/w and g/w, v2, where y is computed from g
+main block computation for the new LC of bump features
 params:
-    - ...
-"""
-function compute_hw_gw2!(x, y, h, q, i, N)
-    @simd for k ∈ 1:N+1
-        @inbounds x[k, :] = (@view h[k, :]) ./ w
-        # for g ⟹ y:
-        @inbounds d = f_d(q, k-1)
-        #@inbounds γ = d.*α
-        #@inbounds δ = d.*β
-        #@inbounds g = f_h_k.(k-1, i, γ, δ)
-        @inbounds y[k, :] = f_h_k.(k-1, i, d.*α, d.*β) ./ w
-    end
-end
-
-"""
-computes V = (u/w) / (ρ + ρ^k)
-params:
-    - u, w, ρ: for diatomic: vectors, length = n_data; for >2atoms: matrix, size = (n_data, n_d) ∈ Float64  
-"""
-function v_BUMP_di(θ, ρ, q, α, β, i, N, e_pow)
-    u = zeros(size(q)[1])
-    w = similar(u)
-    @simd for el ∈ 1:length(i)
-        @inbounds u[el] = f_u_bump(θ, q[el], α[el], β[el], Int(i[el])+1, N) #shift theta by +1, for indexing
-        @inbounds w[el] = f_w_bump(α[el], β[el])
-    end
-    return (u ./ w) ./ (ρ .+ (ρ .^ e_pow))
-end
-
-"""
-main block computation for the new LC bump features
-params:
+    - θ, vector, size = 2N+2
     - R, matrix of distances, size = (n_data, n_d)
+    - const, N, selfexpallaeopritia
+returns:
+    - ρ,u,w = matrix similar(R)
+    - x,y = array size = (n_data, n_d, N+1)
 """
-function BUMP_feature(R, r_xy, N)
-    ρ = f_ρ(R_train, const_r_xy)
+function BUMP_feature(θ, R, const_r_xy, N)
+    ρ = f_ρ(R, const_r_xy) # used for U
     q = f_q_bump(N, ρ)
     i = f_i(q)
     ϵ = f_ϵ(i, q)
     α = f_α(ϵ)
     β = f_β(ϵ)
 
-    # compute primitives, u,w,h:
+    # compute primitives, u,w,h, (u, w) is used for U:
     n_data, n_d = size(R)
-    u = similar(R) # this will be used for U basis
-    w = similar(u)
+    u = similar(R)
+    w = similar(u) 
     h = zeros(n_data, n_d, N+1) # stores the main sub primitive
     compute_u_w_h!(u, w, h, θ, q, α, β, i, N)
 
-
+    # compute x := h/w, y := g/w, in place of Tchebyshev
+    x = similar(h)
+    y = similar(x)
+    compute_hw_gw!(x, y, w, h, q, N)
+    return ρ,u,w,x,y
 end
+
+
 
 """
 ======================
