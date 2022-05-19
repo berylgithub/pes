@@ -71,12 +71,16 @@ function ratpot_exp()
     R_test = copy(test_data[1]); V_test = copy(test_data[2]);
 
     # hyperparam:
+    ## RAT:
     const_r_xy = 1.4172946 # H2
     max_tcheb_deg = 5;
+    ## BUMP:
+    N = 5
 
     # tuning param:
     ub = 1.; lb = -1.;
-    θ_r = rand(max_tcheb_deg+1) .* (ub-lb) .+ lb;
+    θ_r = rand(max_tcheb_deg+1) .* (ub-lb) .+ lb; # RAT
+    θ_b = rand(2*N+2) .* (ub-lb) .+ lb; # BUMP
 
     # storage:
     df_train = DataFrame(power=[], RAT=[], RAT1=[], RAT2=[], BUMP=[])
@@ -86,8 +90,13 @@ function ratpot_exp()
     ρ = f_ρ(R_train, const_r_xy)
     q = f_q(ρ)
     p_pol = f_tcheb_u(q, max_tcheb_deg)
-
-    # one-time comp for BUMP:
+    # one-time comp, BUMP:
+    ρ_b = f_ρ(R_train, const_r_xy)
+    q_b = f_q_bump(N, ρ_b)
+    i_b = f_i(q_b)
+    ϵ_b = f_ϵ(i_b, q_b)
+    α_b = f_α(ϵ_b)
+    β_b = f_β(ϵ_b)
 
     # repeated computations:
     for e_pow ∈ 1:6
@@ -105,7 +114,12 @@ function ratpot_exp()
         res = LsqFit.curve_fit((p_pol, θ) -> f_RATPOT_u(θ, p_pol, ρ, e_pow), p_pol, V_train_tr, θ_r, show_trace=false, maxIter=500)
         V_pred = f_RATPOT_u(res.param, p_pol, ρ, e_pow)
         rmse_r2 = f_RMSE(V_train_tr, V_pred)
-        push!(df_train, Dict(:power => e_pow, :RAT => rmse_r, :RAT1 => rmse_r1, :RAT2 => rmse_r2, :BUMP => rand(1)))
+        # BUMP:
+        res = LsqFit.curve_fit((ρ_b, θ_b) -> v_BUMP_di(θ_b, ρ_b, q_b, α_b, β_b, i_b, N, e_pow), ρ_b, V_train, θ_b, show_trace=false, maxIter=500)
+        V_pred = v_BUMP_di(res.param, ρ_b, q_b, α_b, β_b, i_b, N, e_pow)
+        rmse_b = f_RMSE(V_train, V_pred)
+        # push result:
+        push!(df_train, Dict(:power => e_pow, :RAT => rmse_r, :RAT1 => rmse_r1, :RAT2 => rmse_r2, :BUMP => rmse_b))
     end
     CSV.write("df_train.csv", df_train)
     df_train = CSV.read("df_train.csv", DataFrame)
