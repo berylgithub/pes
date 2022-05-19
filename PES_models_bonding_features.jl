@@ -502,13 +502,13 @@ f_h_k(q, k) = abs.((1 .- (q .- k).^2).^3) # another dispatch, vec ver, the funda
 computes primitive features,
 outputs:
     - u, w, vector, size = n_data
-    - h, matrix, size = (N+1, n_data)
+    - h, matrix, size = (n_data, N+1)
 params:
     - θ, vector, size = N+1
     - q, α, β, i, vectors, size = n_data
     - N, scalar
 """
-function compute_u_w_h!(u, w, h, θ, q, α, β, i, N)
+function compute_u_w_h_diat!(u, w, h, θ, q, α, β, i, N)
     @simd for el ∈ 1:length(i)
         @inbounds u[el] = f_u_bump(θ, q[el], α[el], β[el], Int(i[el])+1, N) #shift theta by +1, for indexing
         @inbounds w[el] = f_w_bump(α[el], β[el])
@@ -516,6 +516,34 @@ function compute_u_w_h!(u, w, h, θ, q, α, β, i, N)
     @simd for k ∈ 0:N
         @simd for el ∈ 1:length(i)
             @inbounds h[el, k+1] = f_h_k(k, i[el], α[el], β[el])
+        end
+    end
+end
+
+"""
+computes primitive features, for atom > 2
+unrolled version, C++ like syntax and speed
+outputs:
+    - u, w, vector, size = (n_data, n_d)
+    - h, array, size = (n_data, n_d, N+1)
+params:
+    - θ, vector, size = N+1
+    - q, α, β, i, similar(u)
+    - N, scalar
+"""
+function compute_u_w_h!(u, w, h, θ, q, α, β, i, N)
+    n_data, n_d = size(q)
+    @simd for m ∈ 1:n_d
+        @simd for el ∈ 1:n_data
+            @inbounds u[el, m] = f_u_bump(θ, q[el, m], α[el, m], β[el, m], Int(i[el, m])+1, N) # shift theta by +1, for indexing
+            @inbounds w[el, m] = f_w_bump(α[el, m], β[el, m])
+        end
+    end
+    @simd for k ∈ 0:N
+        @simd for m ∈ 1:n_d
+            @simd for el ∈ 1:n_data
+                @inbounds h[el, m, k+1] = f_h_k(k, i[el, m], α[el, m], β[el, m])
+            end
         end
     end
 end
@@ -589,7 +617,7 @@ function BUMP_feature(R, r_xy, N)
     n_data, n_d = size(R)
     u = similar(R) # this will be used for U basis
     w = similar(u)
-    h = zeros(N+1, n_data, n_d) # stores the main sub primitive
+    h = zeros(n_data, n_d, N+1) # stores the main sub primitive
     compute_u_w_h!(u, w, h, θ, q, α, β, i, N)
 
 
