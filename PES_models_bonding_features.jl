@@ -573,16 +573,6 @@ function v_BUMP_di(θ, ρ, q, α, β, i, N, e_pow)
 end
 
 """
-other dispatch, 
-params: 
-    - u, w, ρ, matrix = similar(R)
-    - e_pow, scalar
-"""
-function v_BUMP_di(u, w, ρ, e_pow)
-    return (u ./ w) ./ (ρ .+ (ρ .^ e_pow))
-end
-
-"""
 computes primitive features, for atom > 2
 unrolled version, C++ like syntax and speed
 outputs:
@@ -636,12 +626,12 @@ end
 """
 main block computation for the new LC of bump features
 params:
-    - θ, vector, size = 2N+2
+    - θ, vector, size = 2N+2, TUNING PARAM!!
     - R, matrix of distances, size = (n_data, n_d)
-    - const, N, selfexpallaeopritia
+    - const, N, selfexplanatoryt
 returns:
-    - ρ,u,w = matrix similar(R)
-    - x,y = array size = (n_data, n_d, N+1)
+    - ρ,u,w, matrix similar(R)
+    - x,y, array size = (n_data, n_d, N+1)
 """
 function BUMP_feature(θ, R, const_r_xy, N)
     ρ = f_ρ(R, const_r_xy) # used for U
@@ -662,10 +652,38 @@ function BUMP_feature(θ, R, const_r_xy, N)
     x = similar(h)
     y = similar(x)
     compute_hw_gw!(x, y, w, h, q, N)
+    
     return ρ,u,w,x,y
 end
 
+"""
+custom concatenation of BUMP feature, roughly the array should contain [x1,y1,x2,y2,...,xmax_deg or ymaxdeg] in the n_k dim
+"""
+function concat_BUMP(x, y, max_deg)
+    n_data, n_d, _ = size(x)
+    b = Array{Float64}(undef, n_data, n_d, max_deg)
+    xcount = ycount = 1
+    @simd for i=1:max_deg # put x in odd, y in even index:
+        if i%2 == 0
+            @inbounds b[:,:,i] = view(y,:,:,ycount)
+            ycount += 1
+        else
+            @inbounds b[:,:,i] = view(x,:,:,xcount)
+            xcount += 1
+        end
+    end
+    return b
+end
 
+"""
+other dispatch, for U basis
+params: 
+    - u, w, ρ, matrix = similar(R)
+    - e_pow, scalar
+"""
+function v_BUMP_di(u, w, ρ, e_pow)
+    return (u ./ w) ./ (ρ .+ (ρ .^ e_pow))
+end
 
 """
 ======================
@@ -810,6 +828,27 @@ function f_U_bas(R, idxer, arg_vref...)
     U = U./maximum(abs.(U)) # scale U, by U:=U/max(abs(U))
     return U
 end
+
+"""
+U = ∑V_ij, for BUMP features
+returns matrix (n_data, n_atom) ∈ Float64
+params:
+    - idxer, matrix containing the atomic indexer, shape = (n_atom-1,n_atom) ∈ Int
+    - all params of the pair potentials (arg_vref...), most important ones: u,w, size = similar(R)
+"""
+function f_U_bas_BUMP(idxer, arg_vref...)
+    n_data, _ = size(arg_vref[1]) # which is u
+    n_atom = size(idxer)[2]
+    Vref = v_BUMP_di(arg_vref...)
+    U = Matrix{Float64}(undef, n_data, n_atom)
+    @simd for i=1:n_atom
+        Vsub = @view Vref[:, idxer[:,i]]
+        U[:, i] = sum(Vsub, dims=2)
+    end
+    U = U./maximum(abs.(U)) # scale U, by U:=U/max(abs(U))
+    return U
+end
+
 
 """
 constructs Φ array of basis (mathematically, a matrix), all in and outputs' arrays ∈ Float64
