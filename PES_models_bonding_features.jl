@@ -755,7 +755,7 @@ function f_r_orient_vec(z_bump, Δ, idxer)
     for k=rg_k
         for j=rg_j
             @simd for i=rg_i
-                @inbounds temp_out[:,i,j,k] .= z_bump[i,j,k]*(@view Δ[:,i,j])
+                @inbounds temp_out[:,i,j,k] .= z_bump[i,j,k]*(@view Δ[:,i,j]) # need to change this, this allocates heavily!!
             end
         end
     end
@@ -944,7 +944,7 @@ params:
     - ϕ:=Φ[i] ⊂ Φ, subset of the basis array (indexed by atom), shape = (n_data, n_basis) ∈ Float64
 """
 function f_A(θ, ϕ)
-    n_data, n_basis = size(ϕ)
+    #n_data, n_basis = size(ϕ)
     # using matrix*vector mult:
     numer = ϕ * (@view θ[:,1])
     denom = ϕ * (@view θ[:,2])
@@ -1186,6 +1186,40 @@ function f_eval_wrapper_b(Θ_vec, arg_f...)
     return vec(V) # convert to vector
 end
 
+"""
+================================
+>>> Main evals for BUMP
+================================
+"""
+
+"""
+function evaluation of V(.) using bonding features from BUMP.
+    returns V, vector of potential energy, shape = n_data ∈ Real
+    params:
+        - θ, tuning param, vector, length = 2N+2
+        - Θ, tuning param, matrix, size = (n_basis, 6)
+        - ...
+"""
+function f_pot_bond_BUMP(θ, Θ, R, X, idxer, const_r_xy, n_basis, N, e_pow, max_deg)
+    ρ,u,w,x,y = BUMP_feature(θ, R, const_r_xy, N);
+    # U basis:
+    U = f_U_bas_BUMP(idxer, u, w, ρ, e_pow)
+    # b subfeature concatenation:
+    b = concat_BUMP(x, y, max_deg)
+    # Y basis:
+    Y = f_Y_coord(b, idxer)
+    Y = Y ./ maximum(abs.(Y)) # scaler
+    # G basis:
+    Δ = f_Δcoord(X)
+    rk = f_r_orient_vec(b, Δ, idxer)
+    rk = rk ./ maximum(abs.(rk)) # scaler
+    G = f_G_mat(rk)
+    # Φ basis:
+    Φ = f_Φ(U, Y, G, n_basis)
+    # compute total energy:
+    V = f_energy(Θ, Φ)
+    return V
+end
 
 """
 === MAIN CALLERS
