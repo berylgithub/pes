@@ -752,10 +752,21 @@ function f_r_orient_vec(z_bump, Δ, idxer)
     rg_k = 1:n_k; rg_j = 1:n_d; rg_i=1:n_data
     # vanilla loop for z[i,j,k]*Δ[i,:,j]:
     Δ = permutedims(Δ, [2,1,3]) # put vector length to front
-    for k=rg_k
-        for j=rg_j
+    #=
+    @simd for k=rg_k
+        @simd for j=rg_j
             @simd for i=rg_i
-                @inbounds temp_out[:,i,j,k] .= z_bump[i,j,k]*(@view Δ[:,i,j]) # need to change this, this allocates heavily!!
+                @inbounds temp_out[:,i,j,k] = z_bump[i,j,k]*(@view Δ[:,i,j]) # need to change this, this allocates heavily!!
+            end
+        end
+    end
+    =#
+    @simd for k=rg_k
+        @simd for j=rg_j
+            @simd for i=rg_i
+                @simd for h ∈ 1:3
+                    @inbounds temp_out[h,i,j,k] = z_bump[i,j,k]*Δ[h,i,j] # need to change this, this allocates heavily!!
+                end
             end
         end
     end
