@@ -142,14 +142,16 @@ end
 f_RMSE(X, Y) = √(sum((X .- Y) .^ 2)/length(X))
 f_RMSE(ϵ) = √(sum(ϵ.^2)/length(ϵ)) # another dispatch for RMSE
 # adjusted RMSE for potential energy, aRMSE^2= RMSE(\delta), \delta=\eps/(|V|+\Delta):
-δ_dissociate(V, V_pred, ΔV) = (V .- V_pred) ./ ΔV # ΔV = abs.(V) .+ (V_l - V_min), V_l = V(max(R)), V_min = min(V)
+f_ΔV(V, V_l, V_min) = abs.(V) .+ (V_l - V_min) # V_l = V(max(R)), V_min = min(V)
+δ_dissociate(V, V_pred, ΔV) = (V .- V_pred) ./ ΔV
 
 """
 dissociated potential: V(θ, R)/(ΔV :=  abs.(V) .+ (V_l - V_min))
 """
-function v_dissociate(f_eval, ΔV, f_eval_arg...)
-    V = f_eval(f_eval_arg...) ./ ΔV
-    return V
+function v_dissociate(f_eval, V_l, V_min, f_eval_arg...)
+    V = f_eval(f_eval_arg...)
+    ΔV = f_ΔV(V, V_l, V_min)
+    return V ./ ΔV
 end
 
 function f_least_squares(f_eval, Y, f_args...)
