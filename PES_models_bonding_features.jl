@@ -756,7 +756,7 @@ function f_r_orient_vec(z_bump, Δ, idxer)
         @simd for j=rg_j
             @simd for i=rg_i
                 @simd for h ∈ 1:3
-                    @inbounds temp_out[h,i,j,k] = z_bump[i,j,k]*Δ[h,i,j]
+                    @inbounds temp_out[h,i,j,k] = z_bump[i,j,k]*Δ[h,i,j] # need to change this, this allocates heavily!!
                 end
             end
         end
@@ -1179,7 +1179,7 @@ function f_eval_wrapper_b(Θ_vec, arg_f...)
     n_basis = arg_f[4]
     Θ = Matrix{Float64}(undef, n_basis, 6)
     for i=1:6
-    Θ[:, i] = Θ_vec[((i-1)*n_basis) + 1 : i*n_basis]
+        Θ[:, i] = Θ_vec[((i-1)*n_basis) + 1 : i*n_basis]
     end
     # convert then invert U parameters:
     ρ = param_converter_b(Θ_vec[end-6:end])
@@ -1221,6 +1221,21 @@ function f_pot_bond_BUMP(θ, Θ, R, X, idxer, const_r_xy, n_basis, N, e_pow, max
     # compute total energy:
     V = f_energy(Θ, Φ)
     return V
+end
+
+"""
+wrapper for BUMP feval, takes in a vector of parameters (θ_vec)
+"""
+function f_eval_wrapper_BUMP(Θ_vec, arg_f...)
+    # unroll coefficients:
+    n_basis, N = arg_f[[5, 6]]
+    Θ = Matrix{Float64}(undef, n_basis, 6)
+    for i ∈ 1:6
+        Θ[:, i] = Θ_vec[((i-1)*n_basis) + 1 : i*n_basis]
+    end
+    θ = Θ_vec[end - (2*N+1) : end] # pairpot params
+    V = f_pot_bond_BUMP(θ, Θ, arg_f...)
+    return vec(V)
 end
 
 """
