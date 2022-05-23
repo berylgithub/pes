@@ -18,7 +18,7 @@ function ratpot_exp()
     train_data, test_data = splitobs((Xs, Ys); at=0.8)
     R_train = copy(train_data[1]); V_train = copy(train_data[2]);
     R_test = copy(test_data[1]); V_test = copy(test_data[2]);
-
+    
     # hyperparam:
     ## RAT:
     #const_r_xy = 1.4172946 # H2
@@ -82,53 +82,69 @@ function multirestart_BUMP()
     const_r_xy, N, max_deg = (1.4172946, 2, 5)
     idxer = atom_indexer(n_atom)
 
+    # data loader:
     homedir = "/users/baribowo/Code/Python/pes/"
     H_data = readdlm(homedir*"data/h3/h3_data.txt") # potential data
     X = npzread(homedir*"data/h3/h3_coord.npy") # atomic coordinates
     R = H_data[:,1:end-1]; V = H_data[:, end]
-    siz = 100
+    siz = size(R)[1]
     sub_R = R[1:siz,:];
     sub_V = V[1:siz];
     sub_X = X[1:siz, :, :];
+    println("data size =",siz)
+
+    # data split:
+    idxes = shuffleobs(1:siz) # shuffle indexes
+    id_train, id_test = splitobs(idxes, at=0.8) # split train and test indexes
+    # split data by index:
+    R_train = sub_R[id_train,:]; V_train = sub_V[id_train];
+    R_test = sub_R[id_test,:]; V_test = sub_V[id_test]
+    X_train = sub_X[id_train,:,:]; X_test = sub_X[id_test,:,:]
+    println("train size = ",length(V_train))
+    println("test size = ", length(V_test))
 
     #tuning param:
     len_param = n_basis*6 + 2*N + 2
     Θ_vec = rand(Distributions.Uniform(-1.,1.), len_param)
 
-    restarts = Int(10) # number of restarts for the multirestart method
+    restarts = Int(100) # number of restarts for the multirestart method
     min_rmse = Inf
     Θ_min = zeros(length(Θ_vec))
-    V_pred = f_eval_wrapper_BUMP(Θ_vec, sub_R, sub_X, idxer, const_r_xy, n_basis, N, e_pow, max_deg)
-    
-    for iter=1:restarts
-        # precheck nan:
-        while any(isnan.(V_pred)) # reset until no nan:
-            println("resetting NaNs!!")
+    V_pred = f_eval_wrapper_BUMP(Θ_vec, R_train, X_train, idxer, const_r_xy, n_basis, N, e_pow, max_deg)
+
+    t = @elapsed begin # timer
+        for iter=1:restarts
+            # precheck nan:
+            while any(isnan.(V_pred)) # reset until no nan:
+                println("resetting NaNs!!")
+                Θ_vec = rand(Distributions.Uniform(-1.,1.), len_param)
+                res = LsqFit.curve_fit((R, θ) -> f_eval_wrapper_BUMP(θ, R, X_train, idxer, const_r_xy, n_basis, N, e_pow, max_deg),
+                                R_train, V_train, Θ_vec, show_trace=false, maxIter=2)
+                V_pred = f_eval_wrapper_BUMP(res.param, R_train, X_train, idxer, const_r_xy, n_basis, N, e_pow, max_deg)
+            end
+            # optimize
             Θ_vec = rand(Distributions.Uniform(-1.,1.), len_param)
-            res = LsqFit.curve_fit((R, θ) -> f_eval_wrapper_BUMP(θ, R, sub_X, idxer, const_r_xy, n_basis, N, e_pow, max_deg),
-                            sub_R, sub_V, Θ_vec, show_trace=false, maxIter=2)
-            V_pred = f_eval_wrapper_BUMP(res.param, sub_R, sub_X, idxer, const_r_xy, n_basis, N, e_pow, max_deg)
+            res = LsqFit.curve_fit((R, θ) -> f_eval_wrapper_BUMP(θ, R, X_train, idxer, const_r_xy, n_basis, N, e_pow, max_deg), 
+                            R_train, V_train, Θ_vec, show_trace=false, maxIter=1000)
+            V_pred = f_eval_wrapper_BUMP(res.param, R_train, X_train, idxer, const_r_xy, n_basis, N, e_pow, max_deg)
+            # sort RMSE:
+            rmse = f_RMSE(V_train, V_pred)
+            println("optimized, restart = ",iter," rmse = ",rmse)
+            if rmse < min_rmse
+                println("better rmse found!, rmse = ", rmse)
+                min_rmse = rmse
+                Θ_min = res.param
+            end
         end
-        # optimize
-        Θ_vec = rand(Distributions.Uniform(-1.,1.), len_param)
-        res = LsqFit.curve_fit((R, θ) -> f_eval_wrapper_BUMP(θ, R, sub_X, idxer, const_r_xy, n_basis, N, e_pow, max_deg),
-                        sub_R, sub_V, Θ_vec, show_trace=false, maxIter=1000)
-        V_pred = f_eval_wrapper_BUMP(res.param, sub_R, sub_X, idxer, const_r_xy, n_basis, N, e_pow, max_deg)
-        # sort RMSE:
-        rmse = f_RMSE(sub_V, V_pred)
-        println("optimized, restart = ",iter," rmse = ",rmse)
-        if rmse < min_rmse
-            println("better rmse found!, rmse = ", rmse)
-            min_rmse = rmse
-            Θ_min = res.param
-        end
+    end # end of timer
+    writedlm(homedir*"minimizer_H3.csv", Θ_min)
+    x = readdlm(homedir*"minimizer_H3.csv", '\t')
+    # test data evaluation:
+    V_pred = f_eval_wrapper_BUMP(x, R_test, X_test, idxer, const_r_xy, n_basis, N, e_pow, max_deg)
+    for i=1:length(V_test)
+        println(V_test[i]," ",V_pred[i])
     end
-    writedlm("minimizer_H3_100data_.csv", Θ_min)
-    x = readdlm("minimizer_H3_100data_.csv", '\t')
-    V_pred = f_eval_wrapper_BUMP(x, sub_R, sub_X, idxer, const_r_xy, n_basis, N, e_pow, max_deg)
-    for i=1:length(sub_V)
-        println(sub_V[i]," ",V_pred[i])
-    end
-    println(min_rmse)
-    
+    println("min train RMSE = ",min_rmse)
+    println("test RMSE = ", f_RMSE(V_pred, V_test))
+    println("elapsed multirestart time = ",t)
 end
