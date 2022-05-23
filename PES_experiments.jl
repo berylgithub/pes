@@ -5,57 +5,6 @@ using DataFrames, CSV
 this should be where experiments are done, to avoid clutter in ipynb
 """
 
-function ratpot_u_test()
-    const_r_xy = 1.4172946
-    # test using diatomic:
-    H_data = readdlm("data/h2/h2_ground_w.txt")
-    R = H_data[:, 1]; V = H_data[:, 2]
-    Xs, Ys = shuffleobs((R, V))
-    train_data, test_data = splitobs((Xs, Ys); at=0.8)
-    R_train = copy(train_data[1]); V_train = copy(train_data[2]);
-    R_test = copy(test_data[1]); V_test = copy(test_data[2]);
-
-    # hyperparamteres:
-    max_tcheb_deg = 7; e_pow = 1 # 6 may be the best
-    ub = 1.; lb = -1.;
-
-    # tuning parameters:
-    θ = rand(max_tcheb_deg+1) .* (ub-lb) .+ lb; # random between [a, b] = [-1, 1]
-
-    # precomputations:
-    ρ = f_ρ(R_train, const_r_xy)
-    q = f_q(ρ)
-    p_pol = f_tcheb_u(q, max_tcheb_deg)
-    # repeated computations:
-    u = f_RATPOT_u(θ, p_pol)
-    V_train_tr = V_train .* (ρ .+ (ρ .^ e_pow)) # scale version 1, scale V_train with ρ factors
-    ls_val = f_least_squares(f_RATPOT_u, V_train_tr, θ, p_pol)
-    println(ls_val)
-    # optimize:
-    """
-    # optim:
-    res = optimize(θ -> f_least_squares(f_RATPOT_u, V_train_tr, θ, p_pol),
-                    θ, BFGS(),
-                    Optim.Options(iterations = 2000, show_trace=true);
-                    ) # same result
-    """
-    res = LsqFit.curve_fit((p_pol, θ) -> f_RATPOT_u(θ, p_pol), p_pol, V_train_tr, θ, show_trace=true, maxIter=500)
-
-    V_pred = f_RATPOT_u(res.param, p_pol)
-    for i=1:length(V_pred)
-        println(V_train_tr[i]," ",V_pred[i])
-    end
-    println(f_RMSE(V_pred, V_train_tr))
-    # test data:
-    ρ = f_ρ(R_test, const_r_xy)
-    q = f_q(ρ)
-    p_pol = f_tcheb_u(q, max_tcheb_deg)
-    u = f_RATPOT_u(θ, p_pol)
-    V_test_tr = V_test .* (ρ .+ (ρ .^ e_pow))
-    V_pred = f_RATPOT_u(res.param, p_pol)
-    println(f_RMSE(V_pred, V_test_tr))
-end
-
 """
 enumerate all k = 1:6 × data: [H2, OH+] × method: [RATPOTu, RATPOTu_scale1, RATPOTu_scale2, v_BUMP]
 """
@@ -125,4 +74,61 @@ function ratpot_exp()
     CSV.write("df_train_OH+.csv", df_train)
     df_train = CSV.read("df_train_OH+.csv", DataFrame)
     println(df_train)
+end
+
+function multirestart_BUMP()
+    # hyperparam:
+    n_atom, n_basis, e_pow = (3, 59, 3)
+    const_r_xy, N, max_deg = (1.4172946, 2, 5)
+    idxer = atom_indexer(n_atom)
+
+    homedir = "/users/baribowo/Code/Python/pes/"
+    H_data = readdlm(homedir*"data/h3/h3_data.txt") # potential data
+    X = npzread(homedir*"data/h3/h3_coord.npy") # atomic coordinates
+    R = H_data[:,1:end-1]; V = H_data[:, end]
+    siz = 100
+    sub_R = R[1:siz,:];
+    sub_V = V[1:siz];
+    sub_X = X[1:siz, :, :];
+
+    #tuning param:
+    len_param = n_basis*6 + 2*N + 2
+    Θ_vec = rand(Distributions.Uniform(-1.,1.), len_param)
+
+    restarts = Int(10) # number of restarts for the multirestart method
+    min_rmse = Inf
+    Θ_min = zeros(length(Θ_vec))
+    V_pred = f_eval_wrapper_BUMP(Θ_vec, sub_R, sub_X, idxer, const_r_xy, n_basis, N, e_pow, max_deg)
+    
+    for iter=1:restarts
+        # precheck nan:
+        while any(isnan.(V_pred)) # reset until no nan:
+            println("resetting NaNs!!")
+            Θ_vec = rand(Distributions.Uniform(-1.,1.), len_param)
+            res = LsqFit.curve_fit((R, θ) -> f_eval_wrapper_BUMP(θ, R, sub_X, idxer, const_r_xy, n_basis, N, e_pow, max_deg),
+                            sub_R, sub_V, Θ_vec, show_trace=false, maxIter=2)
+            V_pred = f_eval_wrapper_BUMP(res.param, sub_R, sub_X, idxer, const_r_xy, n_basis, N, e_pow, max_deg)
+        end
+        # optimize
+        Θ_vec = rand(Distributions.Uniform(-1.,1.), len_param)
+        res = LsqFit.curve_fit((R, θ) -> f_eval_wrapper_BUMP(θ, R, sub_X, idxer, const_r_xy, n_basis, N, e_pow, max_deg),
+                        sub_R, sub_V, Θ_vec, show_trace=false, maxIter=1000)
+        V_pred = f_eval_wrapper_BUMP(res.param, sub_R, sub_X, idxer, const_r_xy, n_basis, N, e_pow, max_deg)
+        # sort RMSE:
+        rmse = f_RMSE(sub_V, V_pred)
+        println("optimized, restart = ",iter," rmse = ",rmse)
+        if rmse < min_rmse
+            println("better rmse found!, rmse = ", rmse)
+            min_rmse = rmse
+            Θ_min = res.param
+        end
+    end
+    writedlm("minimizer_H3_100data_.csv", Θ_min)
+    x = readdlm("minimizer_H3_100data_.csv", '\t')
+    V_pred = f_eval_wrapper_BUMP(x, sub_R, sub_X, idxer, const_r_xy, n_basis, N, e_pow, max_deg)
+    for i=1:length(sub_V)
+        println(sub_V[i]," ",V_pred[i])
+    end
+    println(min_rmse)
+    
 end
