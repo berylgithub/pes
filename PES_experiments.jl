@@ -83,7 +83,8 @@ function multirestart_BUMP()
     idxer = atom_indexer(n_atom)
 
     # data loader:
-    homedir = "/users/baribowo/Code/Python/pes/"
+    #homedir = "/users/baribowo/Code/Python/pes/" # for work PC only, julia bash isn't available.
+    homedir = "" # default
     H_data = readdlm(homedir*"data/h3/h3_data.txt") # potential data
     X = npzread(homedir*"data/h3/h3_coord.npy") # atomic coordinates
     R = H_data[:,1:end-1]; V = H_data[:, end]
@@ -96,12 +97,21 @@ function multirestart_BUMP()
     # data split:
     idxes = shuffleobs(1:siz) # shuffle indexes
     id_train, id_test = splitobs(idxes, at=0.8) # split train and test indexes
+    writedlm(homedir*"data/h3/index_train_H3.csv", id_train)
+    writedlm(homedir*"data/h3/index_test_H3.csv", id_test)
+    
+    # reuse split, usually for re-optimization, comment "data split" block when doing so (no automatic input? hazukashi~ shi~ shi~):
+    #id_train = vec(readdlm(homedir*"data/h3/index_train_H3.csv", Int))
+    #id_test = vec(readdlm(homedir*"data/h3/index_test_H3.csv", Int))
+
     # split data by index:
     R_train = sub_R[id_train,:]; V_train = sub_V[id_train];
     R_test = sub_R[id_test,:]; V_test = sub_V[id_test]
     X_train = sub_X[id_train,:,:]; X_test = sub_X[id_test,:,:]
     println("train size = ",length(V_train))
     println("test size = ", length(V_test))
+
+    
 
     #tuning param:
     len_param = n_basis*6 + 2*N + 2
@@ -127,6 +137,8 @@ function multirestart_BUMP()
             res = LsqFit.curve_fit((R, θ) -> f_eval_wrapper_BUMP(θ, R, X_train, idxer, const_r_xy, n_basis, N, e_pow, max_deg), 
                             R_train, V_train, Θ_vec, show_trace=false, maxIter=1000)
             V_pred = f_eval_wrapper_BUMP(res.param, R_train, X_train, idxer, const_r_xy, n_basis, N, e_pow, max_deg)
+            # write intermediate params to file 
+            writedlm(homedir*"params/h3/multirestart/c_"*string(iter)*".csv", Θ_vec)
             # sort RMSE:
             rmse = f_RMSE(V_train, V_pred)
             println("optimized, restart = ",iter," rmse = ",rmse)
@@ -137,8 +149,9 @@ function multirestart_BUMP()
             end
         end
     end # end of timer
-    writedlm(homedir*"minimizer_H3.csv", Θ_min)
-    x = readdlm(homedir*"minimizer_H3.csv", '\t')
+    # save param with best RMSE:
+    writedlm(homedir*"params/h3/minimizer_H3.csv", Θ_min)
+    x = readdlm(homedir*"params/h3/minimizer_H3.csv", '\t')
     # test data evaluation:
     V_pred = f_eval_wrapper_BUMP(x, R_test, X_test, idxer, const_r_xy, n_basis, N, e_pow, max_deg)
     for i=1:length(V_test)
