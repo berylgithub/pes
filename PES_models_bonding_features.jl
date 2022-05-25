@@ -21,84 +21,11 @@ autodiff typeerror: https://discourse.julialang.org/t/forwarddiff-no-method-matc
 - need to preallocate everything (like in C++ !!) so no Real allocation instead, Real always allocates due to abstract!!
 
 reversediff Float64 error: https://discourse.julialang.org/t/argumenterror-converting-an-instance-of-reversediff-trackedreal-float64-float32-nothing-to-float32-is-not-defined/69380
-"""
+
+Maybe useful for opt:
+https://discourse.julialang.org/t/fix-parameter-when-passing-to-optimizer/61102
 
 """
-========
->>> old models <<<
-========
-"""
-#=
-RATPOT1 for diatomic potential
-params:
-    - Θ := training parameters, vector size = 3M+1
-    - R := distances, vector, size = n_data
-    - Z := nuclear charge, scalar
-    - M := max pol power, scalar
-=#
-function f_ratpot_1(Θ, R, Z, M)
-    if Θ[2] < 0 # c₁ > 0
-        Θ[2] = -Θ[2]
-    end
-    # P(R):
-    Θ_temp = Θ[4 : 2*M]
-    y = map(r -> horner(r, Θ_temp), R)
-    y = y .* (R.^2)
-    p = Z .* ( (1 ./ R) .+ (Θ[2] .* R) ) .+ Θ[3] .+ y
-    # Q(R):
-    Θ_temp = Θ[2*M + 1 : 3*M + 1]
-    y = map(r -> horner(r, Θ_temp), R)
-    q = 1 .+ (y .* R)
-    # S(R):
-    s = 1 .+ Θ[2] .* ((R .* q).^2)
-    # return V:
-    return Θ[1] .+ p./s
-end
-
-# functional form:
-#=
-RATPOT2 (ansatz 1) for diatomic potential
-params:
-    - Θ := training parameters, vector size = 4M+7
-    - R := distances, vector, size = n_data
-    - M := max pol power, scalar
-=#
-function f_ratpot_2(Θ, R, M)
-    # unroll coefficients
-    a = Θ[1:M]
-    b = Θ[M+1:2*M]
-    c = Θ[2*M+1:3*M+4]
-    d = Θ[3*M+5:4*M+7]
-    
-    # b_i ≥ 0 for i > 1:
-    t = b[2:M]
-    bool = t .< 0.
-    t[bool] = -t[bool]
-    b[2:M] = t
-    
-    # d_i ≥ 0 for i > 0:
-    bool = d .< 0.
-    d[bool] = -d[bool]    
-    
-    # evaluate P:
-    P = c[end-1]
-    P = P .* ((R .- a[1]).^2 .+ (b[1] .* R))
-    for i=2:M
-        P .*= (R .- a[i]).^2 .+ (b[i]*R)
-    end
-
-    
-    # eval Q:
-    Q = (R .+ d[end]).*R
-    for i=1:M+2
-        Q .*= (R .- c[i]).^2 .+ d[i].*R
-    end
-    
-    # eval potential:
-    V = c[end] .+ (P ./ Q)
-    return V
-end
-
 
 """
 =========================
