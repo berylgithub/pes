@@ -1,4 +1,6 @@
 include("PES_models_bonding_features.jl")
+include("RATPOT.jl")
+
 using DataFrames, CSV
 
 """
@@ -8,7 +10,7 @@ this should be where experiments are done, to avoid clutter in ipynb
 """
 enumerate all k = 1:6 × data: [H2, OH+] × method: [RATPOTu, RATPOTu_scale1, RATPOTu_scale2, v_BUMP]
 """
-function ratpot_exp()
+function diatomic_bump_opt()
     # data op:
     #homedir = "/users/baribowo/Code/Python/pes/"
     #H_data = readdlm("data/diatomic/h2_ground_w.txt")
@@ -76,7 +78,100 @@ function ratpot_exp()
     println(df_train)
 end
 
-function multirestart_BUMP()
+"""
+recompute coeffs of rat1 rat2
+"""
+function ratpots_opt()
+    # load data:
+    homedir = "/users/baribowo/Code/Python/pes/" # for work PC only, julia bash isn't available.
+    #homedir = "" 
+    H_data = readdlm(homedir*"data/h2/h2_ground_w.txt")
+    R = H_data[:, 1]; V = H_data[:, 2]
+    id_train = vec(readdlm(homedir*"data/diatomic/index_train_H2.csv", Int))
+    id_test = vec(readdlm(homedir*"data/diatomic/index_test_H2.csv", Int))
+    R_train = R[id_train,:]; V_train = V[id_train];
+    R_test = R[id_test,:]; V_test = V[id_test];
+
+    # storage:
+    df = DataFrame(M=[], RAT1=[], RAT2=[], RAT3=[])
+    df_param = DataFrame(M=[], RAT1_θ = [], RAT2_θ =[], RAT3_θ = []) 
+
+    # for each ratpot, do several restarts:
+    list_M = [5, 7, 10, 13] # pick from the best M later for time
+    
+    # hyperparam:
+    Z = 1;
+    # multirestart param:
+    restarts = 30
+    ub = 1.; lb = -1.
+    for M ∈ list_M
+        # multirestart:
+        println("M = ",M)
+        min_rmse_1 = min_rmse_2 = min_rmse_3 = Inf
+        θ_min_1 = zeros(3*M+1)
+        θ_min_2 = zeros(4*M+7)
+        θ_min_3 = zeros(4*M+8)
+        for i ∈ 1:restarts
+            # ratpot1:
+            θ = rand(3*M+1) .* (ub-lb) .+ lb
+            res = optimize(θ -> f_least_squares(f_ratpot_1, V_train, θ, R_train, Z, M),
+                    θ, BFGS(),
+                    Optim.Options(iterations = 2000, show_trace=false); 
+                    autodiff = :forward
+                    )
+            V_pred = f_ratpot_1(res.minimizer, R_train, Z, M)
+            rmse = f_RMSE(V_pred, V_train)
+            println("rat1, restart = ",i, " rmse = ",rmse)
+            if rmse < min_rmse_1
+                println("better rmse found!!")
+                min_rmse_1 = rmse
+                θ_min_1 = res.minimizer
+            end
+
+            # ratpot2:
+            θ = rand(4*M+7) .* (ub-lb) .+ lb
+            res = optimize(θ -> f_least_squares(f_ratpot_2, V_train, θ, R_train, M),
+                    θ, BFGS(),
+                    Optim.Options(iterations = 2000, show_trace=false); 
+                    autodiff = :forward
+                    )
+            V_pred = f_ratpot_2(res.minimizer, R_train, M)
+            rmse = f_RMSE(V_pred, V_train)
+            println("rat2, restart = ",i, " rmse = ",rmse)
+            if rmse < min_rmse_2
+                println("better rmse found!!")
+                min_rmse_2 = rmse
+                θ_min_2 = res.minimizer
+            end
+
+            # ratpot2:
+            θ = rand(4*M+8) .* (ub-lb) .+ lb
+            res = optimize(θ -> f_least_squares(f_ratpot_3, V_train, θ, R_train, Z, M),
+                    θ, BFGS(),
+                    Optim.Options(iterations = 2000, show_trace=false); 
+                    autodiff = :forward
+                    )
+            V_pred = f_ratpot_3(res.minimizer, R_train, Z, M)
+            rmse = f_RMSE(V_pred, V_train)
+            println("rat3, restart = ",i, " rmse = ",rmse)
+            if rmse < min_rmse_3
+                println("better rmse found!!")
+                min_rmse_3 = rmse
+                θ_min_3 = res.minimizer
+            end
+        end
+        push!(df, Dict(:M => M, :RAT1 => min_rmse_1, :RAT2 => min_rmse_2, :RAT3 => min_rmse_3))
+        push!(df_param, Dict(:M => M, :RAT1_θ => θ_min_1, :RAT2_θ => θ_min_2, :RAT3_θ => θ_min_3))
+    end
+    CSV.write(homedir*"df_rat.csv", df)
+    df = CSV.read(homedir*"df_rat.csv", DataFrame)
+    println(df)
+
+    CSV.write(homedir*"df_param_rat.csv", df_param)
+    df_param = CSV.read(homedir*"df_param_rat.csv", DataFrame);
+end
+
+function multirestart_PES_features()
     # hyperparam:
     n_atom, n_basis, e_pow = (3, 59, 3)
     const_r_xy, N, max_deg = (1.4172946, 2, 5)

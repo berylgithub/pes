@@ -42,7 +42,7 @@ function f_ratpot_1(Θ, R, Z, M)
 end
 
 #=
-RATPOT2 (ansatz 1) for diatomic potential, w/ 4M+7 parameters
+RATPOT2 for diatomic potential, w/ 4M+7 parameters
 params:
     - Θ := training parameters, vector size = 4M+7
     - R := distances, vector, size = n_data
