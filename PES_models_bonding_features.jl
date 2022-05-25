@@ -31,7 +31,7 @@ reversediff Float64 error: https://discourse.julialang.org/t/argumenterror-conve
 #=
 RATPOT1 for diatomic potential
 params:
-    - Θ := training parameters, vector size = 4M+7
+    - Θ := training parameters, vector size = 3M+1
     - R := distances, vector, size = n_data
     - Z := nuclear charge, scalar
     - M := max pol power, scalar
@@ -43,7 +43,7 @@ function f_ratpot_1(Θ, R, Z, M)
     # P(R):
     Θ_temp = Θ[4 : 2*M]
     y = map(r -> horner(r, Θ_temp), R)
-    y = y .* (R^2)
+    y = y .* (R.^2)
     p = Z .* ( (1 ./ R) .+ (Θ[2] .* R) ) .+ Θ[3] .+ y
     # Q(R):
     Θ_temp = Θ[2*M + 1 : 3*M + 1]
@@ -51,6 +51,7 @@ function f_ratpot_1(Θ, R, Z, M)
     q = 1 .+ (y .* R)
     # S(R):
     s = 1 .+ Θ[2] .* ((R .* q).^2)
+    # return V:
     return Θ[1] .+ p./s
 end
 
