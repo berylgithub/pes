@@ -25,15 +25,42 @@ reversediff Float64 error: https://discourse.julialang.org/t/argumenterror-conve
 
 """
 ========
->>> old model <<<
+>>> old models <<<
 ========
 """
+#=
+RATPOT1 for diatomic potential
+params:
+    - Θ := training parameters, vector size = 4M+7
+    - R := distances, vector, size = n_data
+    - Z := nuclear charge, scalar
+    - M := max pol power, scalar
+=#
+function f_ratpot_1(Θ, R, Z, M)
+    if Θ[2] < 0 # c₁ > 0
+        Θ[2] = -Θ[2]
+    end
+    # P(R):
+    Θ_temp = Θ[4 : 2*M]
+    y = map(r -> horner(r, Θ_temp), R)
+    y = y .* (R^2)
+    p = Z .* ( (1 ./ R) .+ (Θ[2] .* R) ) .+ Θ[3] .+ y
+    # Q(R):
+    Θ_temp = Θ[2*M + 1 : 3*M + 1]
+    y = map(r -> horner(r, Θ_temp), R)
+    q = 1 .+ (y .* R)
+    # S(R):
+    s = 1 .+ Θ[2] .* ((R .* q).^2)
+    return Θ[1] .+ p./s
+end
+
 # functional form:
 #=
-ansatz 1 for diatomic potential
+RATPOT2 (ansatz 1) for diatomic potential
 params:
-    - Θ := training parameters, vector ()
-    - R := distances, vector
+    - Θ := training parameters, vector size = 4M+7
+    - R := distances, vector, size = n_data
+    - M := max pol power, scalar
 =#
 function f_ratpot_2(Θ, R, M)
     # unroll coefficients
@@ -78,7 +105,19 @@ end
 =========================
 """
 tsqrt(x) = x > 0. ? √x : √1e-6 # truncated sqrt, sqrt(x) if x > 0 else sqrt(1e-6)
-tlog(x) = log(max(0.1, x)) # truncated log 
+tlog(x) = log(max(0.1, x)) # truncated log
+
+"""
+Horner's scheme, given x scalar and C vector of coefficients
+"""
+function horner(x, C)
+    y = C[end]
+    len = length(C)
+    for i ∈ range(len-1, stop=1, step=-1)
+        y = y*x + C[i]
+    end
+    return y
+end
 
 """
 use distance to coord implementation in Py for now. Load the files using NPZ
