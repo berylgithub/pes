@@ -402,6 +402,33 @@ function v_BUMP_di(θ, ρ, q, α, β, i, N, e_pow)
 end
 
 """
+scalar mode hₖ computation (for linear solve)
+params:
+    - q, k, scalar ∈ Float64
+"""
+f_h_k_scalar(q, k) = abs((1. - (q - k)^2)^3)
+
+"""
+scalar mode w(q):
+param:
+    - h_k = vector length N+1 ∈ Float64
+"""
+f_w_q_scalar(h_k) = sum(h_k)
+
+"""
+scalar mode u(q):
+params:
+    - h_k = vector length N+1 ∈ Float64
+    - i, scalar, data point ∈ Int
+    - q, the transformed data point, scalar ∈ Float64
+    - N, scalar ∈ Int
+    - wq, scalar ∈ Float64
+"""
+function f_u_q_scalar(h_k, q, N, wq)
+
+end
+
+"""
 computes primitive features, for atom > 2
 unrolled version, C++ like syntax and speed
 outputs:
