@@ -180,8 +180,15 @@ function multirestart_PES_features()
     # data loader:
     #homedir = "/users/baribowo/Code/Python/pes/" # for work PC only, julia bash isn't available.
     homedir = "" # default
+    #=
+    # H3:
     H_data = readdlm(homedir*"data/h3/h3_data.txt") # potential data
     X = npzread(homedir*"data/h3/h3_coord.npy") # atomic coordinates
+    =#
+    # H5:
+    H_data = readdlm(homedir*"data/h5/h5_data.txt") # potential data
+    X = npzread(homedir*"data/h5/h5_coord.npy") # atomic coordinates
+
     R = H_data[:,1:end-1]; V = H_data[:, end]
     siz = size(R)[1]
     sub_R = R[1:siz,:];
@@ -190,14 +197,19 @@ function multirestart_PES_features()
     println("data size =",siz)
 
     # data split:
+    #=
     idxes = shuffleobs(1:siz) # shuffle indexes
     id_train, id_test = splitobs(idxes, at=0.8) # split train and test indexes
     writedlm(homedir*"data/h3/index_train_H3.csv", id_train)
     writedlm(homedir*"data/h3/index_test_H3.csv", id_test)
-    
+    =#
     # reuse split, usually for re-optimization, comment "data split" block when doing so (no automatic input? hazukashi~ shi~ shi~):
-    #id_train = vec(readdlm(homedir*"data/h3/index_train_H3.csv", Int))
-    #id_test = vec(readdlm(homedir*"data/h3/index_test_H3.csv", Int))
+    #=
+    id_train = vec(readdlm(homedir*"data/h3/index_train_H3.csv", Int))
+    id_test = vec(readdlm(homedir*"data/h3/index_test_H3.csv", Int))
+    =#
+    id_train = vec(readdlm(homedir*"data/h5/crossval_indices_1_train.txt", Int))
+    id_test = vec(readdlm(homedir*"data/h5/crossval_indices_1_test.txt", Int))
 
     # split data by index:
     R_train = sub_R[id_train,:]; V_train = sub_V[id_train];
@@ -206,13 +218,11 @@ function multirestart_PES_features()
     println("train size = ",length(V_train))
     println("test size = ", length(V_test))
 
-    
-
     #tuning param:
     len_param = n_basis*6 + 2*N + 2
     Θ_vec = rand(Distributions.Uniform(-1.,1.), len_param)
 
-    restarts = Int(100) # number of restarts for the multirestart method
+    restarts = Int(25) # number of restarts for the multirestart method
     min_rmse = Inf
     Θ_min = zeros(length(Θ_vec))
     V_pred = f_eval_wrapper_BUMP(Θ_vec, R_train, X_train, idxer, const_r_xy, n_basis, N, e_pow, max_deg)
@@ -233,7 +243,8 @@ function multirestart_PES_features()
                             R_train, V_train, Θ_vec, show_trace=false, maxIter=1000)
             V_pred = f_eval_wrapper_BUMP(res.param, R_train, X_train, idxer, const_r_xy, n_basis, N, e_pow, max_deg)
             # write intermediate params to file 
-            writedlm(homedir*"params/h3/multirestart/c_"*string(iter)*".csv", Θ_vec)
+            #writedlm(homedir*"params/h3/multirestart/c_"*string(iter)*".csv", Θ_vec)
+            writedlm(homedir*"params/h5/multirestart/c_"*string(iter)*".csv", Θ_vec)
             # sort RMSE:
             rmse = f_RMSE(V_train, V_pred)
             println("optimized, restart = ",iter," rmse = ",rmse)
@@ -245,8 +256,12 @@ function multirestart_PES_features()
         end
     end # end of timer
     # save param with best RMSE:
+    #=
     writedlm(homedir*"params/h3/minimizer_H3.csv", Θ_min)
     x = readdlm(homedir*"params/h3/minimizer_H3.csv", '\t')
+    =#
+    writedlm(homedir*"params/h5/minimizer_H5.csv", Θ_min)
+    x = readdlm(homedir*"params/h5/minimizer_H5.csv", '\t')
     # test data evaluation:
     V_pred = f_eval_wrapper_BUMP(x, R_test, X_test, idxer, const_r_xy, n_basis, N, e_pow, max_deg)
     for i=1:length(V_test)
