@@ -1,0 +1,398 @@
+\documentclass{beamer}
+\usepackage{beamerthemeshadow}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{tikz}
+\usepackage{cmbright}
+\usepackage{mhchem}
+\usepackage{braket}
+\usepackage{biblatex}
+\usepackage{circuitikz}
+\addbibresource{slide_cite_faculty.bib}
+\fontencoding{OT1}\fontfamily{cmbr}\selectfont %to load ot1cmbr.fd
+\DeclareFontShape{OT1}{cmbr}{bx}{n}{% change bx definition
+<->cmbrbx10%
+}{}
+\normalfont % back to normalfont
+
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{section in toc}[sections numbered]
+\setbeamertemplate{subsection in toc}[subsections numbered]
+\setbeamertemplate{footline}[frame number]
+
+\newcommand\Fontvi{\fontsize{8}{7.2}\selectfont} %font size changer
+
+%font type:
+\newenvironment{ppl}{\fontfamily{ppl}\selectfont}{\par}
+
+\setbeamertemplate{itemize item}{$\blacktriangleright$}
+
+% macros:
+\def\D{\displaystyle}
+\def\att{                    % mark at the margin
+        \marginpar[ \hspace*{\fill} \raisebox{-0.2em}{\rule{2mm}{1.2em}} ]
+        {\raisebox{-0.2em}{\rule{2mm}{1.2em}} }
+        }
+\def\at#1{[*** \att #1 ***]}  % text needing attention
+\def\spc{\hspace*{0.5cm}} 			% indentation
+
+
+%Information to be included in the title page:
+\title{Bonding features for H$_x$O$_y$ potential energy surface}
+\author[Aribowo, Neumaier] % (optional, for multiple authors)
+{Beryl Ramadhian Aribowo}
+
+\institute[VFM] % (optional)
+{
+    Joint work with Prof. Arnold Neumaier\\
+    Faculty of Mathematics\\
+    University of Vienna
+}
+
+%\date[VGSCO 2021] % (optional)
+
+\date{\today}
+%{VGSCO retreat}
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}
+    \frametitle{Outline}
+    \begin{columns}[t]
+        \begin{column}{.5\textwidth}
+            \tableofcontents[sections={1-2}]
+        \end{column}
+        \begin{column}{.5\textwidth}
+            \tableofcontents[sections={3-5}]
+        \end{column}
+    \end{columns}
+\end{frame}
+
+
+\section{Pair potential review}
+\subsection{Pair potential review}
+\begin{frame}{Pair potential review}
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \begin{figure}[H]
+                \centering
+                    \includegraphics[scale=0.25]{img/slide/atompair.png}
+                \label{fig:ozone}
+            \end{figure}
+            \begin{equation}
+                V(R) = \frac{{\color{orange}\theta}_1}{R^{-12}} - \frac{{\color{orange}\theta}_2}{R^{-6}}
+            \end{equation}
+            \begin{equation}
+                V(R) = \frac{{\color{orange}\theta}_0 + {\color{orange}\theta}_1R + .. + {\color{orange}\theta}_nR^n}{{\color{orange}\theta}_0 + {\color{orange}\theta}_1R + .. + {\color{orange}\theta}_{n+6}R^{n+6}}
+            \end{equation}
+            \begin{itemize}
+                \item Repulsive term $\approx \mathcal{O}(R^{-12})$
+                \item Attractive term $\approx \mathcal{O}(R^{-6})$
+            \end{itemize}
+        \end{column}
+        \begin{column}{0.5\textwidth}
+            \begin{figure}[htbp]
+                \centering
+                    \includegraphics[scale=0.18]{img/slide/lennard_jones_potential_edit.png}
+                \label{fig:ozone}
+            \end{figure}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{Linearization?}
+    Goals: 
+    \begin{itemize}
+        \item "no training", much faster to compute.
+        \item \textbf{Feature} for larger molecules.
+    \end{itemize}
+    As LC of \textbf{Chebyshev polynomials}:
+    \begin{equation}
+        V(R) = \sum {\color{orange}\theta}_l p_l.
+    \end{equation}
+    \begin{figure}[H]
+        \centering
+            \includegraphics[scale=0.3]{img/linear_RATPOT/linratpot_linsolve_H2_example3.png}
+        \label{fig:linratpot_linsolve_H2}
+    \end{figure}
+\end{frame}
+
+\section{Bonding features}
+\subsection{Overview}
+\begin{frame}{Overview I}
+    \begin{figure}[H]
+        \centering
+            \includegraphics[scale=0.4]{img/slide/bonding_features.png}
+        \label{fig:bonding_features}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Overview II}
+    Bonding features for $n_\text{atom} > 2$:
+    \begin{itemize}
+        \item Primitive features:
+        \begin{itemize}
+            \item {\color{olive}b}, bonding functions.
+            \item {\color{olive}z}, bump functions.
+        \end{itemize}
+        \item Advanced features (monomials for basis functions):
+        \begin{itemize}
+            \item {\color{blue}$U$}, the reference pair potential.
+            \item {\color{blue}$Y$}, the coordination vectors.
+            \item {\color{blue}$G$}, the \textbf{Gram matrices}.
+        \end{itemize}
+        \item Molecular energy model:
+        \begin{itemize}
+            \item Embedded atom model (sum of neighbourhood energies).
+        \end{itemize}
+    \end{itemize}
+    Each monomial is in the form of ${\color{blue}X}[i]$, where $i$ is atom index.
+\end{frame}
+
+% add slides accordingly below:
+\subsection{Primitive features}
+\begin{frame}{Bonding functions}
+    \fontsize{6.5}{6}\selectfont
+    Bond strength:
+    \begin{equation}
+         s := s(R) =
+        \begin{cases}
+            1 & R < {\color{orange}\underline{R}} \\
+            \frac{t_0}{t + t_0} & {\color{orange}\underline{R}} \leq R \leq {\color{orange}\overline{R}}, \quad t := t(R) = \left(\frac{R^2 - {\color{orange}\underline{R}}^2}{{\color{orange}\overline{R}}^2 - R^2}\right)^e \\
+            0 & {\color{orange}\overline{R}} < R
+        \end{cases}
+    \end{equation}
+    Bonding polynomials:
+    \begin{equation}
+        p_1(s) := s, p_{\color{red}d}(s):= s(1-s)T_{{\color{red}d}-2}(1-2s) \text{ for } {\color{red}d} > 1.
+    \end{equation}
+    Bonding functions:
+    \begin{equation}
+        {\color{olive}b}_{ij{\color{red}d}} := p_{\color{red}d}(s)\text{ for }{\color{red}d}=1,2,...
+    \end{equation}
+    \begin{figure}[H]
+        \centering
+            \includegraphics[scale=0.33]{img/slide/bonding_functions.png}
+        \label{fig:bonding_functions}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Bump functions I}
+    \fontsize{6.5}{5}\selectfont
+    \begin{columns}
+        \begin{column}{0.4\textwidth}
+            Computing the sub-features:
+            \begin{itemize}
+                \item Scale: $\rho := R/{\color{red}R_{AB}}$
+                \item Shift: $q := \frac{\color{red}{N}}{1+\rho} \in (0, N]$
+                \item Bump: $h_k := h_k(q) = [1 - (q - k)^2]^3_+$
+                \item $u := u(q) =  \sum^N\limits_{k=0}({\color{orange}\theta}_k(q-k)+{\color{orange}\theta}_{k+N+1})h_k$
+                \item $w := w(q) = \sum h_k$
+            \end{itemize}
+            Basic feature:
+            \begin{equation}
+                {\color{olive}z}_{ij} := (h_k/w, (q-k)h_k/w).
+            \end{equation}
+            Linearization?
+            \begin{equation}
+                \begin{split}
+                    u & := \sum \left(\frac{h_k(q)}{w(q)}{\color{orange}\theta}_k + \frac{(q-k)h_k(q)}{w(q)}{\color{orange}\theta}_{k+N+1}\right) \\
+                    & = A{\color{orange}\theta} = \sum A_{ik}{\color{orange}\theta}_k, \text{ if }q=q_i.
+                \end{split}
+            \end{equation}
+        \end{column}
+        \begin{column}{0.6\textwidth}
+            \begin{figure}[H]
+                \centering
+                    \includegraphics[scale=0.33]{img/BUMP/BUMP_k=5.png}
+                \label{fig:bumpxy}
+            \end{figure}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{Bump functions II}
+    \begin{figure}[H]
+        \centering
+            \includegraphics[scale=0.33]{img/BUMP/BUMP_hw_N=7.png}
+        \label{fig:bumpxy}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Bump functions III}
+    \begin{figure}[H]
+        \centering
+            \includegraphics[scale=0.33]{img/BUMP/BUMP_qhw_N=7.png}
+        \label{fig:bumpxy}
+    \end{figure}
+\end{frame}
+
+\subsection{Advanced features}
+\begin{frame}{Reference pair potential}
+    For each atom $i$, the form is
+    \begin{equation}
+        {\color{blue}U}[i] := \sum_{j \neq i}V_{ij}.
+    \end{equation}
+    Pair potential possibilities:
+    \begin{itemize}
+        \item Nonlinear pair-pot ({\color{blue} cheap, least accurate}):
+        \begin{equation}
+            V_{ij} := V(R) = 
+            \begin{cases}
+                \infty & \text{ if }R \leq {\color{orange}R_h} \\
+                -{\color{orange}C}({\color{orange}R_C}^2 - R^2)^{\color{red}g}\frac{R^2 - {\color{orange}R_0}^2}{R^2 - {\color{orange}R_h}^2} & \text{ if } {\color{orange}R_h} < R \leq {\color{orange}R_C} \\
+                0 & \text{ else}
+            \end{cases}
+        \end{equation}
+        \item RATPOT$_{x=1,2,..}$ ({\color{blue} most expensive, most accurate})
+        \item Bump functions. ({\color{blue} middle ground})
+        \item Linearized pair-pot. (\color{blue} pre-computed!, accuracy=?)
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Coordination vectors}
+    Coordination vectors:
+    \begin{equation}
+        {\color{blue}Y}_{\color{red}d}[i] := \sum_{j\neq i}{\color{olive}\hat{b}}_{ij{\color{red}d}}
+    \end{equation}
+    \begin{itemize}
+        \item ${\color{blue}Y}_1[i] \approx $ \textbf{coordination number} of atom $i$, if ${\color{olive}\hat{b}} = {\color{olive}b}$.
+    \end{itemize}
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \begin{figure}[H]
+                \centering
+                    \includegraphics[scale=0.33]{img/slide/triatom_covalent.png}
+                \label{fig:triatom_covalent}
+            \end{figure}
+        \end{column}
+        \begin{column}{0.5\textwidth}
+            Coordination numbers: ${\color{blue}Y}_1[A] = {\color{blue}Y}_1[B] = {\color{blue}Y}_1[C] = 2$.
+        \end{column}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{Gram matrices}
+    The components of the Gram matrices ${\color{blue}G}[i]$:
+    \begin{equation}
+        {\color{blue}G}[i]_{{\color{red}d}_1{\color{red}d}_2} := r_{{\color{red}d}_1}[i] \cdot r_{{\color{red}d}_2}[i],
+    \end{equation}
+    where
+    \begin{equation}
+        r_{\color{red}d}[i] := \sum_{j \neq i} {\color{olive}\hat{b}}_{ij{\color{red}d}}(x_j - x_i) \in \mathbb{R}^3.
+    \end{equation}
+    The Gram matrices:
+    \begin{itemize}
+        \item are positive semidefinite matrices.
+        \item are invariant to translations, rotations, and reflections.
+        \item contain implicit information of bond angles and torsion angles.
+    \end{itemize}
+\end{frame}
+
+\iffalse
+\begin{frame}{Basis functions}
+    A vector containing the basis functions:
+    \begin{equation}
+        {\color{blue}\Phi := (U, Y_1, UY_1, Y_1^2,Y_2,G_{11},...,Y_1^5,...,G_{23})}.
+    \end{equation}
+    Additional notes:
+    \begin{itemize}
+        \item $k$th basis function of the atom $i$ is ${\color{blue}\Phi}_{k}[i]$.
+        \item A total of 59 functions are enumerated (for up to degree 5 basis functions).
+    \end{itemize}
+\end{frame}
+\fi
+
+\subsection{Energy model}
+\begin{frame}{Potential energy model}
+    \fontsize{8.5}{6}\selectfont
+    \begin{itemize}
+        \item Basis functions:
+        \begin{equation}
+            {\color{blue}\Phi := (U, Y_1, UY_1, Y_1^2,Y_2,G_{11},...,Y_1^5,...,G_{23})}.
+        \end{equation}
+        \item Atomic energy:
+        \begin{equation}
+            \epsilon_0 = A[i] - \sqrt{B[i] + C[i]},
+        \end{equation}
+        where $A$ is of the form
+        \begin{equation}
+            A[i] = \frac{\sum\limits_k {\color{orange}\theta}_k {\color{blue}\Phi}_k[i]}{1 + \left(\sum\limits_k {\color{orange}\theta'}_k {\color{blue}\Phi}_k[i] \right)^2},
+        \end{equation}
+        and $B,C$ are of the form
+        \begin{equation}
+            T_0[i]  = \frac{\left(\sum\limits_k {\color{orange}\theta}_k {\color{blue}\Phi}_k[i]\right)^2}{1 + \left(\sum\limits_k {\color{orange}\theta'}_k {\color{blue}\Phi}_k[i] \right)^2}.
+        \end{equation}
+        \item \textbf{Potential energy} at a given conformation:
+        \begin{equation}
+            V = \sum_i \epsilon_0[i].
+        \end{equation}
+    \end{itemize}
+\end{frame}
+
+
+\section{Numerical experiments}
+\begin{frame}{Computation flow}
+    \begin{figure}[H]
+        \centering
+            \includegraphics[scale=0.4]{img/slide/Computation flow.png}
+        \label{fig:computation_flow}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Programming aspects}
+    \begin{itemize}
+        \item Pre-computations:
+        \begin{itemize}
+            \item Distances $\to$ coordinates, whenever coordinates are not available.
+            \item Atomic indexer, e.g., $n_\text{atom} = 4$:
+            \begin{equation*}
+                \text{indexer} := 
+                \begin{bmatrix}
+                    1 & 2 & 3\\
+                    1 & 4 & 5\\
+                    2 & 4 & 6\\
+                    3 & 5 & 6
+                \end{bmatrix}
+            \end{equation*}  
+            \item {\color{blue}Reference pair potential}?
+        \end{itemize}
+        \item Objective functions:
+        \begin{itemize}
+            \item Standard $f:\mathbb{R}^{n_\text{data}} \to \mathbb{R}$
+            \item Nonlinear least-squares residuals $f:\mathbb{R}^{n_\text{data}} \to \mathbb{R}^{n_\text{data}}$
+        \end{itemize}
+        \item {\color{red} \textbf{Automatic differentiation}}?
+        \item Program written in:
+            \begin{center}
+                \includegraphics[width = 1cm]{img/slide/Julia_Programming_Language_Logo.svg.png} \hspace*{7cm}
+            \end{center}
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Numerical results}
+    *** insert result table here
+\end{frame}
+
+\section{Extra}
+\title{Intro to automatic differentiation ({\color{red}+ Julia})}
+\author{Beryl}
+\begin{frame}
+\maketitle
+\end{frame}
+
+\subsection{"Differentiation" overview}
+\subsection{Forward mode}
+\subsection{Reverse mode}
+\subsection{Julia example}
+
+
+\begin{frame}{References}
+    
+\end{frame}
+
+
+
+\end{document}
