@@ -22,8 +22,10 @@
 \usepackage{calc}
 \usepackage[section]{placeins}
 \usepackage{minted}
-
+\usepackage{accents}
+\usepackage{float}
 % set parameters:
+\newcommand{\ubar}[1]{\underaccent{\bar}{#1}}
 \newlength{\maxmin}
 \setlength{\maxmin}{\widthof{$\max$}-\widthof{$\min$}}
 \setcounter{tocdepth}{4}
@@ -1004,7 +1006,7 @@ Consequently, the final output neuron of the output layer $y_{\Bar{k}}$ follows 
 In this case of H$_3$O system, the permuted set of distances $\{r_{\text{OH}_1}, r_{\text{OH}_2}, r_{\text{OH}_3}, r_{{\text{H}_1} {\text{H}_2}}, r_{{\text{H}_1} {\text{H}_3}}, r_{{\text{H}_2} {\text{H}_3}} \}$, satisfying $r_{\text{OH}_1} \leq r_{\text{OH}_2} \leq r_{\text{OH}_3}$, is fed into the input layer. 
 
 
-
+\iffalse
 \subsection{NN1 PES}
 Used by \textsc{Meisner \& Kästner} \cite{idx106}.
 
@@ -1013,6 +1015,7 @@ Used by \textsc{Zhao} et al \cite{idx107}.
 
 \subsection{Linear absorbing potential}
 Used by \textsc{Ghosh} et al \cite{idx152}.
+\fi
 
 \section{Fitting the potentials}
 \label{section:fit}
@@ -1213,7 +1216,8 @@ for $i=n-1, n-2 ... 0$, do: \\
 end for.
 
 
-\subsubsection{RATPOT2 (placeholder)}
+\subsubsection{RATPOT2}
+This version of RATPOT has a total of $4M+7$ tuning parameters, which are the vectors $a, b, c,$ and $d$. RATPOT2 does not have the nuclear charge as a dependency, it is replaced by one tuning parameter, this should allow more degree of freedom in terms of the data fitting. The functional form is
 \begin{equation}
     \begin{split}
         &V_m(R)=c_0+P/Q, \\
@@ -1225,22 +1229,26 @@ end for.
 where
 $m>0$ and $b_i \ge 0 \text{ for } i>1$ and $d_i \ge 0 \text{ for } i>0$.
 
+\iffalse
 You can start the optimization of $V_m$ for $m>1$ with the parameters from $V_{m-1}$ augmented by $a_m=b_m=c_m=d_m=0$. In this way, the quality of the solution can only improve with increasing $m$. In addition you can try for each $m$ some random starts to check whether there are better minima, before increasing $m$. This should be better than the old rational ansatz since one can convert every rational function with the correct asymptotics to the above form.
 
 If the residual still shows oscillations, you need to give the points with large energy less weight and refit.
+\fi
 
-
-\subsubsection{RATPOT3 (placeholder)}
+\subsubsection{RATPOT3}
+Similar to RATPOT2, RATPOT3 has $a, b, c,$ and $d$ as the tuning parameters' vectors, with a total of $4M+8$ tuning parameters. The nuclear charge coefficient is included back. The functional form is
 \begin{equation}
     \begin{split}
         &P=Z(1/R-1/R_0)\prod_{i=1}^m ((1-R/a_i)^2+R/b_i), \\
         &Q=\prod_{i=1}^{m+3} ((1-R/c_i)^2+R/d_i), \\
-        &m\ge 0 \text{ and all } b_i, d_i \ge 0.
     \end{split}
 \end{equation}
+where $m\ge 0 \text{ and all } b_i, d_i \ge 0.$
+\iffalse
 You can use mathematica to convert the other rational potentials RATPOTx into this product form. If you do this for the best choices for x=1,2 and use them as starting points you should get something possibly even better.
 
 Also try to optimize for each new m only the parameters in the two additional factors, keeping the others fixed.
+\fi
 
 \iffalse %%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsubsection{Cubic spline}
@@ -1248,7 +1256,6 @@ The second possible functional is in the form of tridiagonal matrix of the cubic
 \at{add equations and matrix form}
 
 \at{incomplete desc of below forms}
-
 
 \subsubsection{Exponential LJ-like fit}
 The third proposed functional has the form of polynomial combined with long-range exponential term, the form is
@@ -1269,6 +1276,73 @@ Contains charge screening and $R^{-6}$ long range term, the functional form is
 \end{equation}
 \fi%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+\subsubsection{Linear RATPOT}
+An ansatz in order to solve pair potentials linearly was devised. The main idea is that the pair potentials can be used as a basis function for potentials of molecules containing more atoms. Hence this requires a cheap-to-compute ansatz, or even only needed to be computed once in the beginning (pre-computation) without requiring the parameters to be tuned, which reduces the complexity of the optimization problem. 
+
+In the first step, the diatomic distances need to be scaled
+\begin{equation}
+    \rho_{ij} := R_{ij}/R_{xy},
+    \label{eq:rho_distance}
+\end{equation}
+where $R_{ij}$ is the diatomic distance between atom $i$ of type $x$ and atom $j$ of type $y$, $R_{xy}$ is the \textbf{equilibrium distance} of the pair potential between atom type $x$ and $y$. Atomic equilibrium distance is the diatomic distance which corresponds to the lowest pair potential energy, i.e., when the atoms neither repel nor attract each other. For example, the equilibrium distance of H$_2$ molecule is $R_\text{HH} \approx 1.4172946$ Bohr. 
+
+Then the equilibrium distance needs to be shifted to the center, in this case, 0 is chosen as the center, and the $[\text{min}(\rho), \text{max}(\rho)]$ are shifted to $[-1,1]$, this is done by
+\begin{equation}
+    q := \frac{1-\rho}{1+\rho} \in [-1, 1].
+    \label{eq:q_distance}
+\end{equation}
+
+Finally, the pair potential form is
+\begin{equation}
+    V_k(R) = \frac{u(q)}{\rho + \rho^k},
+    \label{eq:linear_RATPOT}
+\end{equation}
+where $k=1:6$ is a hyperparameter which denotes the asymptotic behavior of the transformed distance, where $k=6$ is the theoretically expected best power since it complies with $R^{-6}$. The numerator $u(q)$ is the linear combination of Chebyshev polynomials of degree $d$ (which means it has $d+1$ parameters)
+\begin{equation}
+    u(q) = \sum p_l(q) \theta_l.
+    \label{eq:chebyshev_pol}
+\end{equation}
+
+Although it is possible to fit this pair potential ansatz directly with sufficiently high accuracy (low RMSE) and reasonable speed, the main idea is to solve this linearly, in order to do this, (\ref{eq:chebyshev_pol}) needs to be transformed into a system of linear equations. With a total number of $n$ data, and $d$ degrees of polynomials, the system of the linear equation is
+\begin{equation}
+    P\theta = V,
+    \label{eq:lineq_ratpot}
+\end{equation}
+where $P \in \mathbb{R}^{n \times d+1}$ is a matrix containing the Chebyshev polynomials entries $p_l(q) \in \mathbb{R}^n$ for each column, where the first column is a $\vec{1}$ column vector since $p_0(q)$ = 1, which then each entry is scaled (elementwise division) by 
+\begin{equation}
+    P := P / (\rho + \rho^k) \in \mathbb{R}^{n \times d+1};
+\end{equation}
+$\theta \in \mathbb{R}^{d+1}$ is the vector containing the tuning parameters; and $V \in \mathbb{R}^n$ is a vector containing the potential energy data points. In this manner, $\theta$ can be obtained by solving (\ref{eq:lineq_ratpot}) linearly. For example in programming language such as Julia and MATLAB, this can be done simply by
+\begin{minted}{julia}
+    theta = P \ V
+\end{minted}
+
+Possible ansatz to scale the RATPOT for solving it linearly (other than (\ref{eq:linear_RATPOT})) are
+\begin{equation}
+    u(q) \approx (\rho + \rho^k) V_k(R),
+    \label{eq:linear_RATPOT_scale1}
+\end{equation}
+and
+\begin{equation}
+    \frac{u(q)}{1+\rho^{k-1}} \approx \rho V_k(R).
+    \label{eq:linear_RATPOT_scale2}
+\end{equation}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.7]{img/linear_RATPOT/linratpot_fit_H2_example.png}
+    \caption{Nonlinear leastsquares fitting applied for linear RATPOT.}
+    \label{fig:linratpot_fit}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.7]{img/linear_RATPOT/linratpot_linsolve_H2_example3.png}
+    \caption{Directly solving linear RATPOT.}
+    \label{fig:linratpot_linsolve}
+\end{figure}
+
+
 \subsection{Fitting method}
 There exist several possible objective function forms which can be used to fit the diatomic functional forms. One possible objective function form is the RMSE in Eq.(\ref{eq:rmse}); another one would be the sum of squared residuals
 \begin{equation}
@@ -1276,6 +1350,39 @@ There exist several possible objective function forms which can be used to fit t
     \label{eq:sumsquaredresidual}
 \end{equation}
 There are two types of optimization routines for nonlinear least squares form, one requires the objective function to return a residual vector, another one is the standard optimization routine which requires the objective function to return a scalar. In the case of overdetermined system (more data than tuning parameters), \textbf{Levenberg-Marquardt} (LM) algorithm \cite{lm} is employable; otherwise, local search such as \textbf{trust region reflective} (TRF) \cite{trf} and \textbf{dogleg} algorithm with rectangular trust regions \cite{dogbox} are employable. This rule is molecule-size-agnostic, i.e., applicable to any molecule size.
+
+\subsubsection{Fitting dissociated energy}
+For any functional form of potential energy, it is possible to scale the curve in a way that the repulsive and attractive part of the potential curve is more visible. This is done by scaling both the functional form and the data by the dissociation energy
+\begin{equation}
+    \Delta = V_l - V_{\min},
+    \label{eq:diss_energy}
+\end{equation}
+where $V_l$ is the potential energy at the largest distance and $V_{\min}$ is the minimum observed potential energy. This is done during the fitting (also applies to direct solvers):
+\begin{equation}
+    \theta_{\min} = f(V_\text{ab initio} / |V_\text{ab initio}| + \Delta, V(R) / |V(R)| + \Delta),
+    \label{eq:diss_solve}
+\end{equation}
+where $\theta_{\min}$ is a vector containing optimized tuning parameters, here $f$ is an objective function for data-fitting, for example (\ref{eq:sumsquaredresidual}); and $V(R)$ is the functional form. Similarly, an adjusted RMSE for dissociated energy is
+\begin{equation}
+    \text{aRMSE} := \Delta \text{RMSE}(\delta),
+    \label{eq:aRMSE}
+\end{equation}
+where
+\begin{equation}
+    \delta := \epsilon /(|V|+\Delta),
+    \label{eq:delta}
+\end{equation}
+and
+\begin{equation}
+    \epsilon = V_\text{ab initio} - V(R).
+    \label{eq:eps}
+\end{equation}
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[scale=0.7]{img/linear_RATPOT/linratpot_linsolve_H2_val-end.png}
+    \caption{Direct linear solve for linear dissociated RATPOT with 5 initial data points and 5 end data points as validation data.}
+    \label{fig:linratpot_diss_linsolve}
+\end{figure}
 
 \iffalse
 \section{Multivalued fit}
@@ -1312,7 +1419,7 @@ Several bonding features and models are applied for H$_3$ molecule. Each feature
 \subsection{Features}
 \subsubsection{Bonding function}
 \label{subsub:bondingfunction}
-The bonding function $b$ is formed by the \textbf{Tchebyshev polynomials} which defines the polynomial degree of the \textbf{bond strength}. The bond strength is a piecewise continuous smooth function which transforms each diatomic distance depending on a lower bound cut off and an upper bound cut off parameters, if the distance is below the lower bound cut off parameter then the bond strength is constant, if the distance is in between the lower and upper bound cut off parameters then the bond strength is equal to some smooth function, otherwise the bond strength is $0$. Bonding function $b$ is relevant for almost all of the features used, the only exception is the \textbf{reference energy} feature.
+The bonding function $b$ is formed by the \textbf{Chebyshev polynomials} which defines the polynomial degree of the \textbf{bond strength}. The bond strength is a piecewise continuous smooth function which transforms each diatomic distance depending on a lower bound cut off and an upper bound cut off parameters, if the distance is below the lower bound cut off parameter then the bond strength is constant, if the distance is in between the lower and upper bound cut off parameters then the bond strength is equal to some smooth function, otherwise the bond strength is $0$. Bonding function $b$ is relevant for almost all of the features used, the only exception is the \textbf{reference energy} feature.
 
 Given a total number of atoms $n_{\text{atom}}$ (which implies degree of freedom $f_{\text{free}} := 0.5(n_{\text{atom}}^2 - n_{\text{atom}})$), polynomial degree $d_{\text{deg}}$, and total number of data points $n_{\text{data}}$, the bonding function is collected in an array with $(d_{\text{deg}}, f_{\text{free}}, n_{\text{data}})$ shape.
 
@@ -1648,6 +1755,178 @@ $\Phi[3]$ &   3.192923e+01 &  -1.031435e+00 &   6.205682e-01 &  2.927580 \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\section{Primitive bonding features}
+\subsection{Coordination function}
+A spline-like $C^2$ function if $t^2<1$ and $0$ otherwise, in the form of
+\begin{equation}
+    z(t) = a - bt - ct^5 + dt^3,
+    \label{eq:f_z}
+\end{equation}
+where $t \in \mathbb{R}$. The coordination function is formed by fulfilling these conditions:
+\begin{equation}
+    \begin{split}
+        z(-1) = 1, \\
+        z(1) = 0, \\
+        z'(\pm 1) = 0, \\
+        z''(\pm 1) = 0.
+    \end{split}
+    \label{eq:f_coord_cond}
+\end{equation}
+In order to obtain the correct $a, b, c, d$, the conditions in (\ref{eq:f_coord_cond}) need to be expanded, which results in a linear system of equations
+\begin{equation}
+    \begin{split}
+        z(-1) = a + b + c - d = 1, \\
+        z(1) = a - b - c + d = 0, \\
+        z'(\pm 1) = -b -5c +3d = 0, \\
+        z''(\pm 1) = 20c - 6d = 0.
+    \end{split}
+    \label{eq:f_coord_lineq}
+\end{equation}
+By solving (\ref{eq:f_coord_lineq}) and writing the coefficients explicitly for the $t^2 < 1$ condition, the coordination function is
+\begin{equation}
+    z(t) = 
+    \begin{cases}
+        1, & \text{if } t \leq -1 \\
+        0, & \text{if } t \geq 1 \\
+        \frac{1}{2}-t\left(\frac{15}{16}+s \left(\frac{3}{16}s -\frac{10}{16}\right)\right). & \text{if } s=t^2 < 1
+    \end{cases}
+    \label{eq:f_coord}
+\end{equation}
+(\ref{eq:f_coord}) can be verified by differentiating $z(t)$ directly and expanding the second last condition in (\ref{eq:f_coord_cond})
+\begin{equation}
+    \begin{split}
+        &z'(t) = \frac{d}{dt}\left[ \frac{1}{2}-t\left(\frac{15}{16}+t^2 \left(\frac{3}{16}t^2 -\frac{10}{16}\right)\right)\right] = -\frac{15}{16}(t+t^4-2t^2), \\
+        &z'(\pm 1) = 0.
+    \end{split}
+\end{equation}
+
+\subsection{Bump functions}
+The bump functions, has the form
+\begin{equation}
+    f_k(t) = (1-(t-k)^2)^3_+
+    \label{eq:f_bump}
+\end{equation}
+where $k \in \mathbb{Z}$, is a $C^2$ function everywhere except when $t \geq k+1$ or $t \leq k-1$, in which $f_k$ is $0$. The transformed $r \in \mathbf{R}$ has the form of  
+\begin{equation}
+    t = c_{xy}(r^2 - r^2_{xy}),
+    \label{eq:t_bump}
+\end{equation}
+where
+\begin{equation}
+    c_{xy} = \frac{N}{\bar{r}_{xy}^2 - \ubar{r}_{xy}^2}
+    \label{eq:c_xy}
+\end{equation}
+is a coefficient which depends on the largest atomic distance $\bar{r}_{xy}^2$ and smallest atomic distance $\ubar{r}_{xy}^2$. While $r_{xy}$ itself denotes the equilibrium distance of xy atomic pair (i.e., the closest distance where $dV/dr \approx 0$), for example, $r_{\text{HH}} \approx 1.4172946$ Bohr.
+
+From (\ref{eq:t_bump}) we can define the upper bound and lower bound of $t$ as
+\begin{equation}
+    \begin{split}
+        \ubar{t} = c_{xy}(\ubar{r}_{xy}^2 - r^2_{xy}), \\
+        \bar{t} = c_{xy}(\bar{r}_{xy}^2 - r^2_{xy}),
+    \end{split}
+    \label{eq:t_bounds}
+\end{equation}
+when $\bar{t}$ and $\ubar{t}$ are rounded to the nearest integers, this tells
+\begin{equation}
+    N = \bar{t} - \ubar{t},
+    \label{eq:t_N}
+\end{equation}
+which is a hyperparameter that describes the number of the primitive functions needed to approximate the associated pair-potential. The list of required $k$ for the total number of $N-1$ bump functions $f_k$ can be obtained by
+\begin{equation}
+    k \in \mathbb{Z} \cap \ubar{t} < k <\bar{t}.
+\end{equation}
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.7]{img/zb(5).png}
+    \caption{$z(t)$ and $f_k(t)$ for $k=1,2,...4$ computed from $\mathbf{R}_{:,3}$ of H$_3$ dataset.}
+    \label{fig:zb(5)}
+\end{figure}
+
+\subsection{Linearizable bump functions}
+Total params: $2N+2$.
+Scaler:
+\begin{equation}
+    q := \frac{N}{1+\rho} \in (0,N]
+\end{equation}
+Basic bump:
+\begin{equation}
+    h_k := [1-(q-k)^2]^3_+
+\end{equation}
+Basis LC:
+\begin{equation}
+    u(q) = \sum_{k=0}^N(\theta_k (q-k) + \theta_{k+N+1})h_k
+\end{equation}
+Bumpsum:
+\begin{equation}
+    w(q) = \sum h_k
+\end{equation}
+Since most $h_k$ vanish:
+\begin{equation}
+    \begin{split}
+        & i := \ceil{q} \geq 1, \\
+        & \epsilon := i-q \in [0,1) \implies q = i - \epsilon \in (i-1,i]
+    \end{split}
+\end{equation}
+Simplified expressions:
+\begin{equation}
+    \begin{split}
+        & \alpha := (\epsilon(2-\epsilon))^3 \\
+        & \beta := (1-\epsilon^2)^3
+    \end{split}
+\end{equation}
+Simplified bump:
+\begin{equation}
+    h_k = 
+    \begin{cases}
+        \alpha & \text{ if }k=i-1, \\
+        \beta & \text{ if }k=i, \\
+        0 & \text{ otherwise }
+    \end{cases}
+\end{equation}
+Simplified basis :C:
+\begin{equation}
+    u(q) = (\theta_i(q-i+1) + \theta_{i+N})\alpha + (\theta_i(q-i) + \theta_{i+N+1})\beta
+\end{equation}
+Simplified bumpsum:
+\begin{equation}
+    w(q) = \alpha + \beta
+\end{equation}
+Basic features:
+\begin{equation}
+    x := h_k(q)/w(q),
+\end{equation}
+\begin{equation}
+    y := (q-k)h_k(q)/w(q)
+\end{equation}
+Linearized bumps:
+\begin{equation}
+    \begin{split}
+        u(q) & = \sum \left(\frac{h_k(q)}{w(q)}\theta_k + \frac{(q-k)h_k(q)}{w(q)}\theta_{k+N+1}\right) \\
+        & = A\theta = \sum A_{ik}\theta_k, \text{ if }q=q_i.
+    \end{split}
+\end{equation}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.5]{img/BUMP/BUMP_hw_N=7.png}
+    \caption{Bumps from $h_k(q)/w(q)$ for $N=7$.}
+    \label{fig:linear_BUMP_x_N=7}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.5]{img/BUMP/BUMP_qhw_N=7.png}
+    \caption{Bumps from $(q-k)h_k(q)/w(q)$ for $N=7$.}
+    \label{fig:linear_BUMP_y_N=7}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.7]{img/BUMP/BUMP_k=5.png}
+    \caption{Bumps for $x$ and $y$ when $k=5$.}
+    \label{fig:linear_BUMP_k=5}
+\end{figure}
 
 \section{Datasets}
 \subsection{H$_2$ data}
