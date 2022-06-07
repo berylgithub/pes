@@ -173,22 +173,17 @@ end
 
 function multirestart_PES_features()
     # hyperparam:
-    n_atom, n_basis, e_pow = (3, 59, 3)
+    n_atom, n_basis, e_pow = (5, 59, 3) #(3, 59, 3)
     const_r_xy, N, max_deg = (1.4172946, 2, 5)
     idxer = atom_indexer(n_atom)
 
     # data loader:
     #homedir = "/users/baribowo/Code/Python/pes/" # for work PC only, julia bash isn't available.
     homedir = "" # default
-    #=
-    # H3:
-    H_data = readdlm(homedir*"data/h3/h3_data.txt") # potential data
-    X = npzread(homedir*"data/h3/h3_coord.npy") # atomic coordinates
-    =#
-    # H5:
-    H_data = readdlm(homedir*"data/h5/h5_data.txt") # potential data
-    X = npzread(homedir*"data/h5/h5_coord.npy") # atomic coordinates
-
+    
+    H_data = readdlm(homedir*"data/h5/h5_data.txt") #H_data = readdlm(homedir*"data/h3/h3_data.txt") # potential data
+    X = npzread(homedir*"data/h5/h5_coord.npy") #X = npzread(homedir*"data/h3/h3_coord.npy") # atomic coordinates
+    
     R = H_data[:,1:end-1]; V = H_data[:, end]
     siz = size(R)[1]
     sub_R = R[1:siz,:];
@@ -204,12 +199,8 @@ function multirestart_PES_features()
     writedlm(homedir*"data/h3/index_test_H3.csv", id_test)
     =#
     # reuse split, usually for re-optimization, comment "data split" block when doing so (no automatic input? hazukashi~ shi~ shi~):
-    #=
-    id_train = vec(readdlm(homedir*"data/h3/index_train_H3.csv", Int))
-    id_test = vec(readdlm(homedir*"data/h3/index_test_H3.csv", Int))
-    =#
-    id_train = vec(readdlm(homedir*"data/h5/crossval_indices_1_train.txt", Int))
-    id_test = vec(readdlm(homedir*"data/h5/crossval_indices_1_test.txt", Int))
+    id_train = vec(readdlm(homedir*"data/h5/crossval_indices_1_train.txt", Int)) #id_train = vec(readdlm(homedir*"data/h3/index_train_H3.csv", Int))
+    id_test = vec(readdlm(homedir*"data/h5/crossval_indices_1_test.txt", Int)) #id_test = vec(readdlm(homedir*"data/h3/index_test_H3.csv", Int))
 
     # split data by index:
     R_train = sub_R[id_train,:]; V_train = sub_V[id_train];
@@ -240,7 +231,7 @@ function multirestart_PES_features()
             # optimize
             Θ_vec = rand(Distributions.Uniform(-1.,1.), len_param)
             res = LsqFit.curve_fit((R, θ) -> f_eval_wrapper_BUMP(θ, R, X_train, idxer, const_r_xy, n_basis, N, e_pow, max_deg), 
-                            R_train, V_train, Θ_vec, show_trace=false, maxIter=1000)
+                            R_train, V_train, Θ_vec, show_trace=false, maxIter=2000)
             V_pred = f_eval_wrapper_BUMP(res.param, R_train, X_train, idxer, const_r_xy, n_basis, N, e_pow, max_deg)
             # write intermediate params to file 
             #writedlm(homedir*"params/h3/multirestart/c_"*string(iter)*".csv", Θ_vec)
