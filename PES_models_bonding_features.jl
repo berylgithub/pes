@@ -435,17 +435,36 @@ generates matrix A to solve pairpotentials linearly, no alloc!
 params:
     - q, vector of data points size = n_data ∈ Float64
     - N, number of bumps, scalar ∈ Float64
-output:
-    - h, matrix, (n_data, 2N+2) ∈ Float64
+outputs:
     - A, matrix, (n_data, 2N+2) ∈ Float64
+    - h, matrix, (n_data, N+1) ∈ Float64
+    - w, zeros vector, (n_data) ∈ Float64
 """
-function BUMP_linear_matrix!(A, h, q, N)
+function BUMP_linear_matrix!(A, h, w, q, N)
     n_data = length(q)
-    @simd for k ∈ 1:N+1
-        @simd for i ∈ 1:n_data
-            h[i, k] = f_h_k_scalar(q[i], )
-    wq = f_w_q_scalar(h)
-    
+    col_idx = 1:N+1; row_idx = 1:n_data
+    # fill h_k:
+    @simd for k ∈ col_idx
+        @simd for i ∈ row_idx
+            h[i, k] = f_h_k_scalar(q[i], k-1) # k-1 due to index starts from 1
+        end
+    end
+    # get w(q) ∀i:
+    @simd for k ∈ col_idx
+        @simd for i ∈ row_idx
+            w[i] += h[i, k]
+        end
+    end
+    # a := h/w and b := (q-k)h/w:
+    @simd for k ∈ col_idx
+        @simd for i ∈ row_idx
+            @inbounds a = h[i, k]/w[i]
+            @inbounds b = (q[i] - (k - 1))*a # k-1 due to index starts from 1
+            # fill matrix A:
+            A[i, k] = a
+            A[i, k+N+1] = b
+        end
+    end
 end
 
 """
