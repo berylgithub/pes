@@ -416,7 +416,7 @@ param:
 f_w_q_scalar(h_k) = sum(h_k)
 
 """
-scalar mode u(q):
+scalar mode u(q) = ∑h_k(q)/w(q) * θ_k + (q-k)h_k(q)/w(q) * θ_k+N+1
 params:
     - h_k = vector length N+1 ∈ Float64
     - i, scalar, data point ∈ Int
@@ -424,8 +424,28 @@ params:
     - N, scalar ∈ Int
     - wq, scalar ∈ Float64
 """
-function f_u_q_scalar(h_k, q, N, wq)
+function f_u_q_scalar(q, N)
+    k_idx = 1:N+1 # index for k, since the indexing starts from 1
+    k_val = 0:N # value used to comptue
+end
 
+
+"""
+generates matrix A to solve pairpotentials linearly, no alloc!
+params:
+    - q, vector of data points size = n_data ∈ Float64
+    - N, number of bumps, scalar ∈ Float64
+output:
+    - h, matrix, (n_data, 2N+2) ∈ Float64
+    - A, matrix, (n_data, 2N+2) ∈ Float64
+"""
+function BUMP_linear_matrix!(A, h, q, N)
+    n_data = length(q)
+    @simd for k ∈ 1:N+1
+        @simd for i ∈ 1:n_data
+            h[i, k] = f_h_k_scalar(q[i], )
+    wq = f_w_q_scalar(h)
+    
 end
 
 """
