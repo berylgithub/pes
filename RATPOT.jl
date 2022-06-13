@@ -1,3 +1,6 @@
+include("PES_models_bonding_features.jl")
+
+
 """
 Horner's scheme, given x scalar and C vector of coefficients
 """
@@ -127,12 +130,9 @@ Linear pairpots:
 ===========
 """
 
-
 """
 basis functions from Prof. Neumaier
 choose basis B inside the function
-params:
-    - q = R/R_eq, vector n_data
 """
 function linratpot_neumbasis(V, R, const_r_xy)
     #n_data = size(R)[1]
@@ -167,6 +167,62 @@ function linratpot_neumbasis(V, R, const_r_xy)
     DB = diagm(d)*B_T;
     DV = d.*V;
     crep = DB\DV
-    Vrep=B_T*crep;
-    return Vrep, B, crep, q
+    return crep, B_T, q
+end
+
+"""
+linratpot Chebyshev
+params:
+    - ...
+"""
+function linratpot_cheb(V, R, const_r_xy, max_d, k)
+    ρ = f_ρ(R, const_r_xy)
+    q = f_q(ρ)
+    p_pol = f_tcheb_u(q, max_d)
+    p_pol = hcat(ones(size(p_pol)[1]), p_pol) # p₀ = 1 as the first entry
+    ρ_scaler = ((ρ .+ ρ).^k)
+    p_pol_scaled = p_pol ./ ρ_scaler
+    θ = p_pol_scaled\V; # linear solve
+    return θ, p_pol_scaled, q
+end
+
+"""
+linratpot BUMP, scaled-by-ρ-ver
+params:
+    - ...
+"""
+function linratpot_BUMP(V, R, const_r_xy, N, k)
+    n_theta = 2*N+2
+    ρ = f_ρ(R, const_r_xy)
+    q = f_q(ρ)
+    ρ_scaler = ((ρ .+ ρ).^k)
+    n_data = size(V)[1]
+    A = zeros(n_data, n_theta)
+    h = zeros(n_data, N+1)
+    w = zeros(n_data)
+    BUMP_linear_matrix!(A, h, w, q, N) # compute A
+    A_scaled = A ./ ρ_scaler
+    θ = A_scaled\V
+    return θ, A_scaled, q
+end
+
+"""
+linratpot BUMP, scaled-by-diag-ver
+params:
+    - ...
+"""
+function linratpot_BUMP_diag(V, R, const_r_xy, N)
+    n_theta = 2*N+2
+    ρ = f_ρ(R, const_r_xy)
+    q = f_q(ρ)
+    n_data = size(V)[1]
+    A = zeros(n_data, n_theta)
+    h = zeros(n_data, N+1)
+    w = zeros(n_data)
+    BUMP_linear_matrix!(A, h, w, q, N) # compute A
+    d = q./(q.+ 10)
+    A_scaled = diagm(d)*A
+    b = d .* V
+    θ = A_scaled\b # solve
+    return θ, A_scaled, q
 end
