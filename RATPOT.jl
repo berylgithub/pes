@@ -13,7 +13,6 @@ end
 """
 Old RATPOTs (diatomic V)
 """
-
 #=
 RATPOT1 for diatomic potential, w/ 3M+1 parameters
 params:
@@ -120,4 +119,54 @@ function f_ratpot_3(Θ, R, Z, M)
 
     # V = c₀ + P/Q:
     return c[end] .+ (P./Q)
+end
+
+"""
+===========
+Linear pairpots:
+===========
+"""
+
+
+"""
+basis functions from Prof. Neumaier
+choose basis B inside the function
+params:
+    - q = R/R_eq, vector n_data
+"""
+function linratpot_neumbasis(V, R, const_r_xy)
+    #n_data = size(R)[1]
+    q=R/const_r_xy;
+    q1=1 .-q;
+    q2=q .^ 2;
+    dq=1 .- q2;
+    rep1=max.(dq .- q,0).^3 ./ q;         # Coulomb
+    rep2=max.(dq,0).^3;              # const+O(q^2)
+    rep3=q2.*rep2;                  # O(q^2) = att0
+    rep4=q.*rep3;                   # O(q^3)
+    att1=q2.*max.(2 .- q,0).^3;         # attractive
+    att2=q2.*max.(3 .- q,0).^3;         # attractive
+    att3=q2.*max.(4 .- q,0).^3;         # attractive
+    att4=max.(q1.*(q .-3),0).^3;       # attractive
+    #att5=max.((q .- 2).*(q .- 5),0).^3;       # attractive
+    vdw1=max.((1 .- 1 ./ q)./q2,0).^3;   # van der Waals
+    vdw2=vdw1 ./ q;                  # van der Waals
+    vdw3=vdw2 ./ q;                  # van der Waals
+    #vdw4=vdw3 ./ q;                  # van der Waals
+
+    #B = Matrix{Float64}(undef, n_data, 11)
+    #B[:, 1] = rep1; 
+    B=[rep1,rep2,rep3,rep4,att1,att2,att3,att4,vdw1,vdw2,vdw3];
+    #B=[rep1,rep2,rep3,rep4,att1,att2,att3,att4,att5,vdw1,vdw2,vdw3,vdw4];
+    #B=[rep1,rep2,rep3,rep4,att1,att2,att3,att4,vdw1,vdw2,vdw3,vdw4];
+    #B=[rep1,rep2,rep3,att1,att2,att3,att4,vdw1,vdw2,vdw3];
+
+    B = mapreduce(permutedims, vcat, B) # transform to matrix
+    B_T = transpose(B)
+    d = q./(q .+ 10);
+    DB = diagm(d)*B_T;
+    DV = d.*V;
+    crep = DB\DV
+    Vrep=B_T*crep;
+    return Vrep, B, crep, q
 end
