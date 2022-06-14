@@ -171,6 +171,50 @@ function ratpots_opt()
     df_param = CSV.read(homedir*"df_param_rat.csv", DataFrame);
 end
 
+function linear_ratpots()
+    homedir = "/users/baribowo/Code/Python/pes/"
+
+    # load data and split 50:50:
+    data = readdlm(homedir*"data/h2/h2_ground_w.txt")
+    R = data[:, 1]; V = data[:, 2]
+    siz = size(R)[1]
+    id_train = []; id_test = []
+    for i ∈ 1:siz
+        if i % 2 == 1
+            push!(id_train, i)
+        elseif i % 2 == 0
+            push!(id_test, i)
+        end
+    end
+    R_train = R[id_train]; R_test = R[id_test]
+    V_train = V[id_train]; V_test = V[id_test]
+    # hyperparam ∀:
+    const_r_xy = 1.4172946
+    V_min = minimum(V)
+    V_l = V[argmax(R)]
+    Δ = V_l - V_min
+
+    # neumbasis:
+    ## train:
+    θ, A, q = linratpot_neumbasis(V_train, R_train, const_r_xy)
+    V_pred = A*θ
+    #f_RMSE(V_train, V_pred)
+    ## test:
+    _, A, q = linratpot_neumbasis(V_test, R_test, const_r_xy)
+    V_pred = A*θ
+    rmse = f_RMSE(V_test, V_pred)
+    println("RMSE = ",rmse)
+    a_rmse = Δ*f_RMSE(δ_dissociate(V_test, V_pred, f_ΔV(V_pred, V_l, V_min))) # adjusted RMSE, Δ = V_l-V_min above
+    println("aRMSE = ",a_rmse)
+    
+    # cheb:
+
+
+    # BUMP:
+            
+end
+
+
 function multirestart_PES_features()
     # hyperparam:
     n_atom, n_basis, e_pow = (3, 59, 3) #(5, 59, 3)
