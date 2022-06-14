@@ -173,45 +173,98 @@ end
 
 function linear_ratpots()
     homedir = "/users/baribowo/Code/Python/pes/"
+    # storage:
+    #df_rmse = DataFrame(deg=[], neum=[], cheb=[], bump=[])
 
-    # load data and split 50:50:
-    data = readdlm(homedir*"data/h2/h2_ground_w.txt")
-    R = data[:, 1]; V = data[:, 2]
-    siz = size(R)[1]
-    id_train = []; id_test = []
-    for i ∈ 1:siz
-        if i % 2 == 1
-            push!(id_train, i)
-        elseif i % 2 == 0
-            push!(id_test, i)
+    data_list = ["H2", "O2", "OH"]
+    file_list = ["data/h2/h2_ground_w.txt", "data/diatomic/o2_data.txt", "data/diatomic/oh_data.txt"]
+    io = open(homedir*"linear_pairpot.txt", "w")
+    for file_idx ∈ 1:length(file_list)
+        println("data = ",data_list[file_idx])
+        write(io, "data = ",string(data_list[file_idx]), "\n")
+        # load data and split 50:50:
+        data = readdlm(homedir*file_list[file_idx])
+        R = data[:, 1]; V = data[:, 2]
+        siz = size(R)[1]
+        id_train = []; id_test = []
+        for i ∈ 1:siz
+            if i % 2 == 1
+                push!(id_train, i)
+            elseif i % 2 == 0
+                push!(id_test, i)
+            end
         end
+        R_train = R[id_train]; R_test = R[id_test]
+        V_train = V[id_train]; V_test = V[id_test]
+        # hyperparam ∀:
+        const_r_xy = 1.4172946
+        V_min = minimum(V)
+        V_l = V[argmax(R)]
+        Δ = V_l - V_min
+
+        # neumbasis:
+        ## train:
+        θ, A, q = linratpot_neumbasis(V_train, R_train, const_r_xy)
+        ## test:
+        _, A, q = linratpot_neumbasis(V_test, R_test, const_r_xy)
+        V_pred = A*θ
+        rmse = f_RMSE(V_test, V_pred)
+        armse = Δ*f_RMSE(δ_dissociate(V_test, V_pred, f_ΔV(V_pred, V_l, V_min)))
+        println("neumbasis RMSE = ",rmse)
+        println("neumbasis aRMSE = ",armse)
+        write(io, "neumbasis RMSE = ",string(rmse), "\n")
+        write(io, "neumbasis aRMSE = ",string(armse), "\n")
+        
+        # cheb, find best hyperparam:
+        best_d = 0
+        min_rmse = min_armse = Inf;
+        #best_θ = [] #empty array
+        for d ∈ 1:30
+            ## train:
+            θ, A, q = linratpot_cheb(V_train, R_train, const_r_xy, d, 1)
+            ## test:
+            _, A, q = linratpot_cheb(V_test, R_test, const_r_xy, d, 1)
+            V_pred = A*θ
+            rmse = f_RMSE(V_test, V_pred)
+            armse = Δ*f_RMSE(δ_dissociate(V_test, V_pred, f_ΔV(V_pred, V_l, V_min)))
+            if armse < min_armse
+                min_rmse = rmse
+                min_armse = armse
+                best_d = d
+            end
+        end
+        println("Cheb deg = ",best_d)
+        println("Cheb RMSE = ", min_rmse)
+        println("Cheb aRMSE = ",min_armse)
+        write(io, "Cheb deg = ",string(best_d), "\n")
+        write(io, "Cheb RMSE = ",string(min_rmse), "\n")
+        write(io, "Cheb aRMSE = ",string(min_armse), "\n")
+
+        # BUMP:
+        best_N = 0
+        min_rmse = min_armse = Inf;
+        for N ∈ 1:30
+            ## train:
+            θ, A, q = linratpot_BUMP(V_train, R_train, const_r_xy, N, 1)
+            ## test:
+            _, A, q = linratpot_BUMP(V_test, R_test, const_r_xy, N, 1)
+            V_pred = A*θ
+            rmse = f_RMSE(V_test, V_pred)
+            armse = Δ*f_RMSE(δ_dissociate(V_test, V_pred, f_ΔV(V_pred, V_l, V_min)))
+            if armse < min_armse
+                min_rmse = rmse
+                min_armse = armse
+                best_N = N
+            end
+        end
+        println("BUMP deg = ",best_N)
+        println("BUMP RMSE = ", min_rmse)
+        println("BUMP aRMSE = ",min_armse)
+        write(io, "BUMP deg = ",string(best_N), "\n")
+        write(io, "BUMP RMSE = ",string(min_rmse), "\n")
+        write(io, "BUMP aRMSE = ",string(min_armse), "\n")
     end
-    R_train = R[id_train]; R_test = R[id_test]
-    V_train = V[id_train]; V_test = V[id_test]
-    # hyperparam ∀:
-    const_r_xy = 1.4172946
-    V_min = minimum(V)
-    V_l = V[argmax(R)]
-    Δ = V_l - V_min
-
-    # neumbasis:
-    ## train:
-    θ, A, q = linratpot_neumbasis(V_train, R_train, const_r_xy)
-    V_pred = A*θ
-    #f_RMSE(V_train, V_pred)
-    ## test:
-    _, A, q = linratpot_neumbasis(V_test, R_test, const_r_xy)
-    V_pred = A*θ
-    rmse = f_RMSE(V_test, V_pred)
-    println("RMSE = ",rmse)
-    a_rmse = Δ*f_RMSE(δ_dissociate(V_test, V_pred, f_ΔV(V_pred, V_l, V_min))) # adjusted RMSE, Δ = V_l-V_min above
-    println("aRMSE = ",a_rmse)
-    
-    # cheb:
-
-
-    # BUMP:
-            
+    close(io);
 end
 
 
