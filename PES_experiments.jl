@@ -243,7 +243,7 @@ function linear_ratpots()
         # BUMP:
         best_N = 0
         min_rmse = min_armse = Inf;
-        for N ∈ 1:30
+        for N ∈ 1:60
             ## train:
             θ, A, q = linratpot_BUMP(V_train, R_train, const_r_xy, N, 1)
             ## test:
@@ -267,6 +267,70 @@ function linear_ratpots()
     close(io);
 end
 
+"""
+best degs obtained from above
+"""
+function linear_ratpots_best()
+    homedir = "/users/baribowo/Code/Python/pes/"
+    # storage:
+    #df_rmse = DataFrame(deg=[], neum=[], cheb=[], bump=[])
+
+    data_list = ["H2", "O2", "OH"]
+    file_list = ["data/h2/h2_ground_w.txt", "data/diatomic/o2_data.txt", "data/diatomic/oh_data.txt"]
+    # best degrees:
+    cheb_d = [18, 3, 6]
+    BUMP_N = [28, 3, 44]
+    for file_idx ∈ 1:length(file_list)
+        println("data = ",data_list[file_idx])
+        # load data and split 50:50:
+        data = readdlm(homedir*file_list[file_idx])
+        R = data[:, 1]; V = data[:, 2]
+        siz = size(R)[1]
+        id_train = []; id_test = []
+        for i ∈ 1:siz
+            if i % 2 == 1
+                push!(id_train, i)
+            elseif i % 2 == 0
+                push!(id_test, i)
+            end
+        end
+        R_train = R[id_train]; R_test = R[id_test]
+        V_train = V[id_train]; V_test = V[id_test]
+        # hyperparam ∀:
+        const_r_xy = 1.4172946
+        V_min = minimum(V)
+        V_l = V[argmax(R)]
+        Δ = V_l - V_min
+
+        # cheb
+        d = cheb_d[file_idx]
+        ## train:
+        θ, A, q = linratpot_cheb(V_train, R_train, const_r_xy, d, 1)
+        ## test:
+        _, A, q = linratpot_cheb(V_test, R_test, const_r_xy, d, 1)
+        V_pred = A*θ
+        rmse = f_RMSE(V_test, V_pred)
+        armse = Δ*f_RMSE(δ_dissociate(V_test, V_pred, f_ΔV(V_pred, V_l, V_min)))
+        println("Cheb deg = ", d)
+        println("Cheb RMSE = ", rmse)
+        println("Cheb aRMSE = ",armse)
+        savefig(plot(R_test, V_test-V_pred, markershape = :+, fmt = :png), homedir*"plot/linear_pairpot/cheb_"*data_list[file_idx]*".png")
+
+        # BUMP:
+        N = BUMP_N[file_idx]
+        ## train:
+        θ, A, q = linratpot_BUMP(V_train, R_train, const_r_xy, N, 1)
+        ## test:
+        _, A, q = linratpot_BUMP(V_test, R_test, const_r_xy, N, 1)
+        V_pred = A*θ
+        rmse = f_RMSE(V_test, V_pred)
+        armse = Δ*f_RMSE(δ_dissociate(V_test, V_pred, f_ΔV(V_pred, V_l, V_min)))
+        println("BUMP deg = ", N)
+        println("BUMP RMSE = ", rmse)
+        println("BUMP aRMSE = ",armse)
+        savefig(plot(R_test, V_test-V_pred, markershape = :+, fmt = :png), homedir*"plot/linear_pairpot/BUMP_"*data_list[file_idx]*".png")
+    end
+end
 
 function multirestart_PES_features()
     # hyperparam:
