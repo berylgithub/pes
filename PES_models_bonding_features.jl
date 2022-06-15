@@ -229,7 +229,7 @@ RATPOTu - ratpot with r_{xy}
 ======================
 """
 f_ρ(R, r_xy) = R./r_xy # computed once
-f_q(ρ) = (1 .- ρ)./(1 .+ ρ) # computed once
+f_q(ρ) = (1. .- ρ)./(1. .+ ρ) # computed once
 """
 computed once!!
 returns Matrix{Float64}(undef, n_data, max_deg)
