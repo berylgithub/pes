@@ -207,22 +207,41 @@ function linratpot_BUMP(V, R, const_r_xy, N, k)
 end
 
 """
-linratpot BUMP, scaled-by-diag-ver
+linratpot Chebyshev, scaled by diag
 params:
     - ...
 """
-function linratpot_BUMP_diag(V, R, const_r_xy, N)
-    n_theta = 2*N+2
+function linratpot_cheb_diag(V, R, const_r_xy, max_d, scale)
     ρ = f_ρ(R, const_r_xy)
     q = f_q(ρ)
+    p_pol = f_tcheb_u(q, max_d)
+    p_pol = hcat(ones(size(p_pol)[1]), p_pol) # p₀ = 1 as the first entry
+    d = q ./ (q .+ scale)
+    p_pol_scaled = diagm(d)*p_pol
+    b = d .* V
+    θ = p_pol_scaled\b; # linear solve
+    return θ, p_pol_scaled, p_pol, q
+end
+
+"""
+linratpot BUMP, scaled-by-diag-ver
+params:
+    - ...
+    - scale = scaling factor ≥ 10
+"""
+function linratpot_BUMP_diag(V, R, const_r_xy, N, scale)
+    n_theta = 2*N+2
+    ρ = R ./ const_r_xy # ρ = f_ρ(R, const_r_xy)
+    q = (1. .- ρ) ./ (1. .+ ρ) # q = f_q(ρ)
     n_data = size(V)[1]
+    # generate A for A\b:
     A = zeros(n_data, n_theta)
     h = zeros(n_data, N+1)
     w = zeros(n_data)
     BUMP_linear_matrix!(A, h, w, q, N) # compute A
-    d = q./(q.+ 10)
+    d = q./(q.+ scale)
     A_scaled = diagm(d)*A
     b = d .* V
     θ = A_scaled\b # solve
-    return θ, A_scaled, q
+    return θ, A_scaled, A, q
 end
