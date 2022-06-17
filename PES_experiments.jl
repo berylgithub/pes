@@ -178,7 +178,8 @@ function linear_ratpots()
 
     data_list = ["H2", "O2", "OH"]
     file_list = ["data/h2/h2_ground_w.txt", "data/diatomic/o2_data.txt", "data/diatomic/oh_data.txt"]
-    io = open(homedir*"linear_pairpot.txt", "w")
+    io = open(homedir*"linear_pairpot_scaled.txt", "w")
+    scaling = range(10., 200., step=10.) # scaling
     for file_idx ∈ 1:length(file_list)
         println("data = ",data_list[file_idx])
         write(io, "data = ",string(data_list[file_idx]), "\n")
@@ -203,63 +204,85 @@ function linear_ratpots()
         Δ = V_l - V_min
 
         # neumbasis:
-        ## train:
-        θ, A, q = linratpot_neumbasis(V_train, R_train, const_r_xy)
-        ## test:
-        _, A, q = linratpot_neumbasis(V_test, R_test, const_r_xy)
-        V_pred = A*θ
-        rmse = f_RMSE(V_test, V_pred)
-        armse = Δ*f_RMSE(δ_dissociate(V_test, V_pred, f_ΔV(V_pred, V_l, V_min)))
-        println("neumbasis RMSE = ",rmse)
-        println("neumbasis aRMSE = ",armse)
-        write(io, "neumbasis RMSE = ",string(rmse), "\n")
-        write(io, "neumbasis aRMSE = ",string(armse), "\n")
-        
-        # cheb, find best hyperparam:
-        best_d = 0
+        best_scale = 0.
         min_rmse = min_armse = Inf;
-        #best_θ = [] #empty array
-        for d ∈ 1:30
+        for scale ∈ scaling
             ## train:
-            θ, A, q = linratpot_cheb(V_train, R_train, const_r_xy, d, 1)
+            θ, A, q = linratpot_neumbasis(V_train, R_train, const_r_xy, scale)
             ## test:
-            _, A, q = linratpot_cheb(V_test, R_test, const_r_xy, d, 1)
+            _, A, q = linratpot_neumbasis(V_test, R_test, const_r_xy, scale)
             V_pred = A*θ
             rmse = f_RMSE(V_test, V_pred)
             armse = Δ*f_RMSE(δ_dissociate(V_test, V_pred, f_ΔV(V_pred, V_l, V_min)))
             if armse < min_armse
                 min_rmse = rmse
                 min_armse = armse
-                best_d = d
+                best_scale = scale
             end
         end
+        println("neumbasis scale = ",best_scale)
+        println("neumbasis RMSE = ",min_rmse)
+        println("neumbasis aRMSE = ",min_armse)
+        write(io, "neumbasis scale = ",string(best_scale), "\n")
+        write(io, "neumbasis RMSE = ",string(min_rmse), "\n")
+        write(io, "neumbasis aRMSE = ",string(min_armse), "\n")
+        
+        # cheb:
+        best_d = 0; best_scale = 0.
+        min_rmse = min_armse = Inf;
+        for scale ∈ scaling
+            for d ∈ 1:30
+                ## train:
+                #θ, A, q = linratpot_cheb(V_train, R_train, const_r_xy, d, 1)
+                θ, A_scaled, A, q = linratpot_cheb_diag(V_train, R_train, const_r_xy, d, scale)
+                ## test:
+                _, A_scaled, A, q = linratpot_cheb_diag(V_test, R_test, const_r_xy, d, scale)
+                V_pred = A*θ
+                rmse = f_RMSE(V_test, V_pred)
+                armse = Δ*f_RMSE(δ_dissociate(V_test, V_pred, f_ΔV(V_pred, V_l, V_min)))
+                if armse < min_armse
+                    min_rmse = rmse
+                    min_armse = armse
+                    best_d = d
+                    best_scale = scale
+                end
+            end
+        end
+        println("Cheb scale = ",best_scale)
         println("Cheb deg = ",best_d)
         println("Cheb RMSE = ", min_rmse)
         println("Cheb aRMSE = ",min_armse)
+        write(io, "Cheb scale =",string(best_scale), "\n")
         write(io, "Cheb deg = ",string(best_d), "\n")
         write(io, "Cheb RMSE = ",string(min_rmse), "\n")
         write(io, "Cheb aRMSE = ",string(min_armse), "\n")
 
         # BUMP:
-        best_N = 0
+        best_N = 0; best_scale = 0.
         min_rmse = min_armse = Inf;
-        for N ∈ 1:60
-            ## train:
-            θ, A, q = linratpot_BUMP(V_train, R_train, const_r_xy, N, 1)
-            ## test:
-            _, A, q = linratpot_BUMP(V_test, R_test, const_r_xy, N, 1)
-            V_pred = A*θ
-            rmse = f_RMSE(V_test, V_pred)
-            armse = Δ*f_RMSE(δ_dissociate(V_test, V_pred, f_ΔV(V_pred, V_l, V_min)))
-            if armse < min_armse
-                min_rmse = rmse
-                min_armse = armse
-                best_N = N
+        for scale ∈ scaling
+            for N ∈ 1:60
+                ## train:
+                #θ, A, q = linratpot_BUMP(V_train, R_train, const_r_xy, N, 1)
+                θ, A_scaled, A, q = linratpot_BUMP_diag(V_train, R_train, const_r_xy, N, scale)
+                ## test:
+                _, A_scaled, A, q = linratpot_BUMP_diag(V_test, R_test, const_r_xy, N, scale)
+                V_pred = A*θ
+                rmse = f_RMSE(V_test, V_pred)
+                armse = Δ*f_RMSE(δ_dissociate(V_test, V_pred, f_ΔV(V_pred, V_l, V_min)))
+                if armse < min_armse
+                    min_rmse = rmse
+                    min_armse = armse
+                    best_N = N
+                    best_scale = scale
+                end
             end
         end
+        println("BUMP scale = ",best_scale)
         println("BUMP deg = ",best_N)
         println("BUMP RMSE = ", min_rmse)
         println("BUMP aRMSE = ",min_armse)
+        write(io, "BUMP scale =",string(best_scale), "\n")
         write(io, "BUMP deg = ",string(best_N), "\n")
         write(io, "BUMP RMSE = ",string(min_rmse), "\n")
         write(io, "BUMP aRMSE = ",string(min_armse), "\n")
