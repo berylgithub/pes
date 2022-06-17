@@ -134,7 +134,7 @@ Linear pairpots:
 basis functions from Prof. Neumaier
 choose basis B inside the function
 """
-function linratpot_neumbasis(V, R, const_r_xy)
+function linratpot_neumbasis(V, R, const_r_xy, scale)
     #n_data = size(R)[1]
     q=R/const_r_xy;
     q1=1 .-q;
@@ -163,7 +163,7 @@ function linratpot_neumbasis(V, R, const_r_xy)
 
     B = mapreduce(permutedims, vcat, B) # transform to matrix
     B_T = transpose(B)
-    d = q./(q .+ 10);
+    d = q./(q .+ scale);
     DB = diagm(d)*B_T;
     DV = d.*V;
     crep = DB\DV
