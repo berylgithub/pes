@@ -245,3 +245,26 @@ function linratpot_BUMP_diag(V, R, const_r_xy, N, scale)
     θ = A_scaled\b # solve
     return θ, A_scaled, A, q
 end
+
+"""
+same as above but BUMP only, no wavelets
+params:
+    - ...
+    - scale = scaling factor ≥ 10
+"""
+function linratpot_BUMP_only_diag(V, R, const_r_xy, N, scale)
+    n_theta = N+1
+    ρ = R ./ const_r_xy # ρ = f_ρ(R, const_r_xy)
+    q = (1. .- ρ) ./ (1. .+ ρ) # q = f_q(ρ)
+    n_data = size(V)[1]
+    # generate A for A\b:
+    A = zeros(n_data, n_theta)
+    h = zeros(n_data, n_theta)
+    w = zeros(n_data)
+    BUMP_only!(A, h, w, q, N) # compute A
+    d = q./(q.+ scale)
+    A_scaled = diagm(d)*A
+    b = d .* V
+    θ = A_scaled\b # solve
+    return θ, A_scaled, A, q
+end

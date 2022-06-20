@@ -468,6 +468,36 @@ function BUMP_linear_matrix!(A, h, w, q, N)
 end
 
 """
+same as above but BUMPs only, no wavelets
+difference:
+    - A, matrix, (n_data, N+1) ∈ Float64
+"""
+function BUMP_only!(A, h, w, q, N)
+    n_data = length(q)
+    col_idx = 1:N+1; row_idx = 1:n_data
+    # fill h_k:
+    @simd for k ∈ col_idx
+        @simd for i ∈ row_idx
+            h[i, k] = f_h_k_scalar(q[i], k-1) # k-1 due to index starts from 1
+        end
+    end
+    # get w(q) ∀i:
+    @simd for k ∈ col_idx
+        @simd for i ∈ row_idx
+            w[i] += h[i, k]
+        end
+    end
+    # a := h/w and b := (q-k)h/w:
+    @simd for k ∈ col_idx
+        @simd for i ∈ row_idx
+            @inbounds a = h[i, k]/w[i]
+            # fill matrix A:
+            A[i, k] = a
+        end
+    end
+end
+
+"""
 computes primitive features, for atom > 2
 unrolled version, C++ like syntax and speed
 outputs:
