@@ -415,20 +415,6 @@ param:
 """
 f_w_q_scalar(h_k) = sum(h_k)
 
-"""
-scalar mode u(q) = ∑h_k(q)/w(q) * θ_k + (q-k)h_k(q)/w(q) * θ_k+N+1
-params:
-    - h_k = vector length N+1 ∈ Float64
-    - i, scalar, data point ∈ Int
-    - q, the transformed data point, scalar ∈ Float64
-    - N, scalar ∈ Int
-    - wq, scalar ∈ Float64
-"""
-function f_u_q_scalar(q, N)
-    k_idx = 1:N+1 # index for k, since the indexing starts from 1
-    k_val = 0:N # value used to comptue
-end
-
 
 """
 generates matrix A to solve pairpotentials linearly, no alloc!
@@ -600,6 +586,37 @@ function concat_BUMP(x, y, max_deg)
     return b
 end
 
+
+"""
+============
+Pairpot features from linear ratpot
+============
+"""
+
+"""
+linear Vref in chebyshev term
+params:
+    - θ, parameters from solving linear ratpot, vector, size = n_param
+    - R, matrix of distances, size = (n_data, n_d)
+outputs:
+    - Vref, matrix, size = (n_data, n_d) ∈ Float64
+    - A, (array of) "data" matrix, size = (n_data, n_param, n_data)
+"""
+function vref_linratpot_cheb!(Vref, A, θ, R, const_r_xy, d, k)
+    n_data, n_param, n_d = size(A)
+    pad = ones(n_data)
+    @simd for i ∈ 1:n_d
+        ρ = f_ρ((@view R[:, i]), const_r_xy)
+        q = f_q(ρ)
+        A[:, :, i] = f_tcheb_u(q, d)
+        A = hcat(pad, A) # A₀ = 1 as the first entry
+        ρ_scaler = ((ρ .+ ρ).^k)
+        A = A ./ ρ_scaler
+        @inbounds Vref[:, i] = θ*( @view A[:, :, i] )
+    end
+end
+
+
 """
 other dispatch, for U basis
 params: 
@@ -767,6 +784,24 @@ function f_U_bas_BUMP(idxer, arg_vref...)
     n_data, _ = size(arg_vref[1]) # which is u
     n_atom = size(idxer)[2]
     Vref = v_BUMP_di(arg_vref...)
+    U = Matrix{Float64}(undef, n_data, n_atom)
+    @simd for i=1:n_atom
+        Vsub = @view Vref[:, idxer[:,i]]
+        U[:, i] = sum(Vsub, dims=2)
+    end
+    U = U./maximum(abs.(U)) # scale U, by U:=U/max(abs(U))
+    return U
+end
+
+"""
+more general U, Vref as an arbitrary fun, Vref should output a matrix, size = (n_data, n_d)
+additional params:
+    - f_Vref, function that computes Vref which returns matrix w/ size = (n_data, n_d)
+"""
+function f_U_bas_general(idxer, f_Vref, arg_vref...)
+    n_data, _ = size(arg_vref[1]) # which is u
+    n_atom = size(idxer)[2]
+    Vref = f_Vref(arg_vref...)
     U = Matrix{Float64}(undef, n_data, n_atom)
     @simd for i=1:n_atom
         Vsub = @view Vref[:, idxer[:,i]]
@@ -1162,6 +1197,21 @@ function f_eval_wrapper_BUMP(Θ_vec, arg_f...)
     V = f_pot_bond_BUMP(θ, Θ, arg_f...)
     return vec(V)
 end
+
+"""
+================================
+>>> Main evals for linear RATPOTs
+================================
+"""
+"""
+function evaluation of V using bonding features from linear RATPOTs.
+    returns V, vector of potential energy, shape = n_data ∈ Real
+    params:
+        - Θ, tuning param, matrix, size = (n_basis, 6)
+        - ...
+"""
+
+
 
 """
 === MAIN CALLERS
