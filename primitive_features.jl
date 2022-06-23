@@ -478,31 +478,33 @@ Chebyshev from q (scaled R) features
 """
 
 """
-linear Vref in chebyshev term, this is precomputation!
+linear Vref in chebyshev term, this is a precomputation!
 params:
     - θ, parameters from solving linear ratpot, vector, size = n_param
     - R, matrix of distances, size = (n_data, n_d)
 outputs:
     - Vref, matrix, size = (n_data, n_d) ∈ Float64
-    - A, (array of) "data" matrix, size = (n_data, n_param, n_data)
 """
-function chebq_vref(θ, R)
-
+function chebq_vref(θ, p, q, n_d)
+    Vref = similar(q)
+    @simd for i ∈ n_d 
+        Vref[:, i] = p[:,:,i]*θ 
+    end
+    return Vref
 end
 
 
 """
 feature ≡ b in terms of the old chebyshev feature. Returns matrix size = (n_data, n_d, d)
+takes precomputed ρ and q array. 
 """
-function chebq_feature(R, const_r_xy, d)
-    n_data, n_d = size(R)
-    p = Array{Float64}(undef, n_data, d, n_d) 
-    ρ = f_ρ(R, const_r_xy)
-    q = f_q(ρ)
+function chebq_feature(ρ, q, d, n_data, n_d)
+    p = Array{Float64}(undef, n_data, d+1, n_d)
+    vec_ones = ones(n_data) # only for the Vref
     @simd for i ∈ 1:n_d
-        @inbounds p[:, :, i] = f_tcheb_u((@view q[:, i]), d) ./ (2*@view ρ[:, i]) # the default formula: denom ≈ (ρ .+ ρ)^k, since k =1, this is chosen
+        p[:, 1, i] = vec_ones # only for the Vref
+        p[:, 2:end, i] = f_tcheb_u((@view q[:, i]), d) ./ (2*@view ρ[:, i]) # the default formula: denom ≈ (ρ .+ ρ)^k, since k =1, this is chosen
     end
-    p = permutedims(p, [1,3,2])
     return p
 end
 

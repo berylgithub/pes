@@ -136,3 +136,66 @@ function f_least_squares_vec(f_eval, Y, f_args...)
     res = (Y .- Y_pred).^2
     return res
 end
+
+
+"""
+=============
+parameter converters, mainly for chebyshev v1 feature, and BUMP v1 feature
+==============
+"""
+
+"""
+convert C, R_h, R_C, R_0, to unconstrained, for old (v1) BUMP
+"""
+function param_converter(ρ)
+    π = Vector{Float64}(undef, length(ρ))
+    π[1] = tlog(ρ[1])/20 # log(C)/20
+    π[2] = tlog(ρ[2])/20 # log(R_h)/20
+    π[4] = tsqrt(ρ[4]) # sqrt(R_0)
+    π[3] = tsqrt(ρ[3] - ρ[4]) # sqrt(R_C - R_0)
+
+    return π
+end
+
+"""
+revert C, R_h, R_C, R_0, to initial, comply to R_h ≤ R_0 ≤ R_C, for old (v1) BUMP
+"""
+function param_inverter(ρ)
+    π = Vector{Float64}(undef, length(ρ))
+    π[1] = exp(20. * ρ[1]) # C
+    π[2] = exp(20. * ρ[2]) # R_h
+    π[4] = ρ[4]^2  # R_0
+    π[3] = ρ[3]^2 + π[4] # R_C
+
+    return π
+end
+
+"""
+convert C, R_h, R_low, R_m, R_0, R_up, R_C, to unconstrained
+"""
+function param_converter_b(ρ)
+    π = Vector{Float64}(undef, length(ρ))
+    π[1] = tlog(ρ[1])/20 # log(C)/20
+    π[2] = tlog(ρ[2])/20 # log(R_h)/20
+    π[3] = tsqrt(ρ[3]) # sqrt(R_low)
+    π[4] = tsqrt(ρ[4] - ρ[3]) # sqrt(R_0 - R_low)
+    π[5] = tsqrt(ρ[5] - ρ[4]) # sqrt(R_m - R_0)
+    π[6] = tsqrt(ρ[6] - ρ[5]) # sqrt(R_up - R_m)
+    π[7] = tsqrt(ρ[7] - ρ[6]) # sqrt(R_C - R_up)
+    return π
+end
+
+"""
+revert C, R_h, R_low, R_m, R_0, R_up, R_C, to initial, comply to R_h ≤ R_low ≤ R_0 ≤ R_m ≤ R_up ≤ R_C
+"""
+function param_inverter_b(ρ)
+    π = Vector{Float64}(undef, length(ρ))
+    π[1] = exp(20. * ρ[1]) # C
+    π[2] = exp(20. * ρ[2]) # R_h
+    π[3] = ρ[3]^2 # R_low
+    π[4] = ρ[4]^2 + π[3] # R_0
+    π[5] = ρ[5]^2 + π[4] # R_m
+    π[6] = ρ[6]^2 + π[5] # R_up
+    π[7] = ρ[7]^2 + π[6] # R_C
+    return π
+end
