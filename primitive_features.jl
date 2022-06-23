@@ -485,12 +485,12 @@ params:
 outputs:
     - Vref, matrix, size = (n_data, n_d) ∈ Float64
 """
-function chebq_vref(θ, p, q, n_d)
-    Vref = similar(q)
-    @simd for i ∈ n_d 
-        Vref[:, i] = p[:,:,i]*θ 
+function chebq_vref(θ, p, n_data, n_d)
+    vref = Matrix{Float64}(undef, n_data, n_d)
+    for i ∈ n_d 
+        vref[:, i] = p[:,:,i]*θ
     end
-    return Vref
+    return vref
 end
 
 
