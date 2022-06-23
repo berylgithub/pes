@@ -92,6 +92,22 @@ function f_b_feature(R, R_up, R_m, R_low, max_deg, e)
 end
 
 """
+trainable pair potential, all inputs and outputs are scalars, use f.() for array of R !! # somehow this allocates less
+reverse AD compatibiliy ??
+"""
+function V_ref_pairpot(R, C, R_h, R_C, R_0, g)
+    V = 0.
+    if R ≤ R_h
+        V = Inf
+    elseif R_h ≤ R ≤ R_C
+        R2 = R^2
+        V = -C*(R_C^2 - R2)^g * ((R2 - R_0^2)/(R2 - R_h^2))
+    end
+    return V
+end
+
+
+"""
 ======================
 RATPOTu - ratpot with r_{xy}
 ======================
@@ -457,7 +473,7 @@ end
 
 """
 ============
-Pairpot features from linear ratpot
+Chebyshev from q (scaled R) features
 ============
 """
 
@@ -470,7 +486,24 @@ outputs:
     - Vref, matrix, size = (n_data, n_d) ∈ Float64
     - A, (array of) "data" matrix, size = (n_data, n_param, n_data)
 """
-function Vref_cheb()
+function chebq_vref(θ, R)
+
+end
+
+
+"""
+feature ≡ b in terms of the old chebyshev feature. Returns matrix size = (n_data, n_d, d)
+"""
+function chebq_feature(R, const_r_xy, d)
+    n_data, n_d = size(R)
+    p = Array{Float64}(undef, n_data, d, n_d) 
+    ρ = f_ρ(R, const_r_xy)
+    q = f_q(ρ)
+    @simd for i ∈ 1:n_d
+        @inbounds p[:, :, i] = f_tcheb_u((@view q[:, i]), d) ./ (2*@view ρ[:, i]) # the default formula: denom ≈ (ρ .+ ρ)^k, since k =1, this is chosen
+    end
+    p = permutedims(p, [1,3,2])
+    return p
 end
 
 
