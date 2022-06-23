@@ -487,8 +487,8 @@ outputs:
 """
 function chebq_vref(θ, p, n_data, n_d)
     vref = Matrix{Float64}(undef, n_data, n_d)
-    for i ∈ n_d 
-        vref[:, i] = p[:,:,i]*θ
+    @simd for i ∈ 1:n_d 
+        @inbounds vref[:, i] = (@view p[:,:,i])*θ
     end
     return vref
 end
@@ -502,8 +502,8 @@ function chebq_feature(ρ, q, d, n_data, n_d)
     p = Array{Float64}(undef, n_data, d+1, n_d)
     vec_ones = ones(n_data) # only for the Vref
     @simd for i ∈ 1:n_d
-        p[:, 1, i] = vec_ones # only for the Vref
-        p[:, 2:end, i] = f_tcheb_u((@view q[:, i]), d) ./ (2*@view ρ[:, i]) # the default formula: denom ≈ (ρ .+ ρ)^k, since k =1, this is chosen
+        @inbounds p[:, 1, i] = vec_ones # only for the Vref
+        @inbounds p[:, 2:end, i] = f_tcheb_u((@view q[:, i]), d) ./ (2*@view ρ[:, i]) # the default formula: denom ≈ (ρ .+ ρ)^k, since k =1, this is chosen
     end
     return p
 end
