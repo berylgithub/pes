@@ -324,7 +324,7 @@ function f_energy(Θ, Φ)
 end
 
 """
-attempts on making the AD works
+works for AD !!!
 """
 function f_energy_AD(Θ, Φ)
     n_data, n_basis, n_atom = size(Φ)
@@ -339,6 +339,44 @@ function f_energy_AD(Θ, Φ)
     return ϵ
 end
 
+
+
+"""
+single primitive OPs:
+"""
+function f_A_single(θ, ϕ)
+    # using matrix*vector mult:
+    numer = sum(ϕ .* (@view θ[:,1]))
+    denom = sum(ϕ .* (@view θ[:,2]))
+    denom = denom^2 + 1.
+    return numer / denom
+end
+
+function f_T0_single(θ, ϕ)
+    numer = sum(ϕ .* (@view θ[:,1]))
+    denom = sum(ϕ .* (@view θ[:,2]))
+    denom = denom^2 + 1.
+    return (numer)^2 / denom
+end
+
+"""
+single data f_energy
+params:
+    - Θ, matrix, (n_basis, 6)
+    - ϕ ⊂ Φ, matrix (n_atom, n_basis)
+"""
+function f_energy_single(Θ, ϕ, n_atom)
+    # all operations in scalar:
+    ϵ = 0.
+    for i ∈ 1:n_atom
+        A = f_A_single((@view Θ[:,1:2]), (@view ϕ[:,i]))
+        B = f_T0_single((@view Θ[:,3:4]), (@view ϕ[:,i]))
+        C = f_T0_single((@view Θ[:,5:6]), (@view ϕ[:,i]))
+        ϵ0 = A - √(B + C)
+        ϵ += ϵ0
+    end
+    return ϵ
+end
 
 """
 ===============
