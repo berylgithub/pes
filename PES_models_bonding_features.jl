@@ -546,6 +546,16 @@ function f_pot_pre(R, H_coord, θ, indexer,
     return Φ
 end
 
+"""
+feval wrapper s.t. it accepts vector as tuning parameters instead of matrix or array.
+"""
+function f_energy_wrap(θ, Φ, n_basis)
+    Θ = Matrix{Float64}(undef, n_basis, 6)
+    for i ∈ 1:6
+        Θ[:, i] = θ[((i-1)*n_basis) + 1 : i*n_basis]
+    end
+    return vec(f_energy(Θ, Φ))
+end
 
 """
 === MAIN CALLERS
@@ -744,5 +754,64 @@ function multirestart()
     println(min_rmse)
 end
 
-#multirestart()
+function basis_precomp_opt_test()
+    homedir = "/users/baribowo/Code/Python/pes/" # for work PC only, julia bash isn't available.
+    #homedir = "" # default
+    # compute optimal ratpot:
+    data = readdlm(homedir*"data/h2/h2_ground_w.txt")
+    R = data[:, 1]; V = data[:, 2]
+    siz = size(R)[1]
+    id_train = []; id_test = []
+    for i ∈ 1:siz
+        if i % 2 == 1
+            push!(id_train, i)
+        elseif i % 2 == 0
+            push!(id_test, i)
+        end
+    end
+    R_train = R[id_train]; R_test = R[id_test]
+    V_train = V[id_train]; V_test = V[id_test]
+    # hyperparam for linratpot:
+    const_r_xy = 1.4172946
+    V_min = minimum(V)
+    V_l = V[argmax(R)]
+    Δ = V_l - V_min
+
+    d = 18 # best d from experiment
+    θ, A, q = linratpot_cheb(V, R, const_r_xy, d, 1)
+    V_pred = A*θ
+    rmse = f_RMSE(V, V_pred)
+    armse = Δ*f_RMSE(δ_dissociate(V, V_pred, f_ΔV(V_pred, V_l, V_min)))
+    println(rmse, armse)
+
+    # load molecule data:
+    H_data = readdlm(homedir*"data/h3/h3_data.txt")
+    # load atomic coordinates:
+    X = npzread(homedir*"data/h3/h3_coord.npy")
+    R = H_data[:,1:end-1]; V = H_data[:, end]
+    n_data = size(R)[1]
+    siz = 100
+    sub_R = R[1:siz,:];
+    sub_V = V[1:siz];
+    sub_X = X[1:siz, :, :];
+
+    # hyperparams for feval:
+    max_d = 5; n_basis = 59
+    n_data, n_d = size(sub_R)
+    ub = 1.; lb = -1.
+
+    # precompute basis!!:
+    Φ = f_pot_pre(sub_R, sub_X, θ, atom_indexer(3), const_r_xy, d, max_d, n_basis, n_data, n_d)
+
+    # optimize:
+    Θ = rand(n_basis*6).* (ub-lb) .+ lb # tuning parameter
+    res = LsqFit.curve_fit((Φ, Θ) -> f_energy_wrap(Θ, Φ, n_basis),
+                            Φ, sub_V, Θ, show_trace=false, maxIter=1000)
+
+    V_pred = f_energy_wrap(res.param, Φ, n_basis)
+    for i=1:length(sub_V)
+        println(sub_V[i]," ",V_pred[i])
+    end
+    println(f_RMSE(sub_V, V_pred))
+end
 
