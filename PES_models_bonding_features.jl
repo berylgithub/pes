@@ -169,7 +169,7 @@ additional params:
     - f_Vref, function that computes Vref which returns matrix w/ size = (n_data, n_d)
 """
 function f_U_bas_general(idxer, f_Vref, arg_vref...)
-    n_data, _ = size(arg_vref[1]) # which is u
+    n_data = arg_vref[end-1] # n_data, n_d = end-1, end
     n_atom = size(idxer)[2]
     Vref = f_Vref(arg_vref...)
     U = Matrix{Float64}(undef, n_data, n_atom)
@@ -177,7 +177,7 @@ function f_U_bas_general(idxer, f_Vref, arg_vref...)
         Vsub = @view Vref[:, idxer[:,i]]
         U[:, i] = sum(Vsub, dims=2)
     end
-    U = U./maximum(abs.(U)) # scale U, by U:=U/max(abs(U))
+    #U = U./maximum(abs.(U)) # scale U, by U:=U/max(abs(U))
     return U
 end
 
@@ -519,15 +519,32 @@ end
 """
 
 """
-function evaluation of V using bonding features from linear RATPOTs.
-    returns V, vector of potential energy, shape = n_data ∈ Real
+(Pre computation mode !!)
+computes the basis functions Φ using bonding features from linear RATPOTs.
+    returns V, vector of potential energy, shape = n_data ∈ Float64
     params:
-        - Θ, tuning param, matrix, size = (n_basis, 6)
+        - R (n_data, n_d) ∈ Float64
+        - X (H_coord) ...
+        - θ, optimized parameter from linear ratpots, (d) ∈ Float64
+        - indexer
         - ...
 """
-function f_pot_bond_lin()
+function f_pot_pre(R, H_coord, θ, indexer,
+                    const_r_xy, d, max_d, n_basis,
+                    n_data, n_d)
+    ρ = f_ρ(R, const_r_xy)
+    q = f_q(ρ)
+    p = chebq_feature(ρ, q, d, n_data, n_d)
+    U = f_U_bas_general(indexer, chebq_vref, θ, p, n_data, n_d)
+    p = permutedims(p, [1,3,2]) # becomes (n_data, n_d, d+1)
+    p = @view p[:, :, 2:1+max_d] # take only the relevant index
+    Y = f_Y_coord(p, indexer)
+    Δ = f_Δcoord(H_coord)
+    rk = f_r_orient_vec(p, Δ, indexer)
+    G = f_G_mat(rk)
+    Φ = f_Φ(U, Y, G, n_basis)
+    return Φ
 end
-
 
 
 """
