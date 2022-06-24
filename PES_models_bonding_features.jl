@@ -324,6 +324,23 @@ function f_energy(Θ, Φ)
 end
 
 """
+attempts on making the AD works
+"""
+function f_energy_AD(Θ, Φ)
+    n_data, n_basis, n_atom = size(Φ)
+    ϵ = zeros(n_data)
+    for i ∈ 1:n_atom # for each atom:
+        A = f_A((@view Θ[:,1:2]), (@view Φ[:,:,i])) # A term
+        B = f_T0((@view Θ[:,3:4]), (@view Φ[:,:,i])) # B term
+        C = f_T0((@view Θ[:,5:6]), (@view Φ[:,:,i])) # C term
+        ϵ0 = A .- .√(B .+ C) # |vector| = n_data
+        ϵ += ϵ0
+    end
+    return ϵ
+end
+
+
+"""
 ===============
 >>> Main fun evals for z and bumps <<<
 ===============
