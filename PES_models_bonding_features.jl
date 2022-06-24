@@ -344,17 +344,17 @@ end
 """
 single primitive OPs:
 """
-function f_A_single(θ, ϕ)
+function f_A_single(θ_u, θ_l, ϕ)
     # using matrix*vector mult:
-    numer = sum(ϕ .* (@view θ[:,1]))
-    denom = sum(ϕ .* (@view θ[:,2]))
+    numer = sum(ϕ .* θ_u)
+    denom = sum(ϕ .* θ_l)
     denom = denom^2 + 1.
     return numer / denom
 end
 
-function f_T0_single(θ, ϕ)
-    numer = sum(ϕ .* (@view θ[:,1]))
-    denom = sum(ϕ .* (@view θ[:,2]))
+function f_T0_single(θ_u, θ_l, ϕ)
+    numer = sum(ϕ .* θ_u)
+    denom = sum(ϕ .* θ_l)
     denom = denom^2 + 1.
     return (numer)^2 / denom
 end
@@ -362,16 +362,16 @@ end
 """
 single data f_energy
 params:
-    - Θ, matrix, (n_basis, 6)
+    - Θ, vector, (n_basis*6)
     - ϕ ⊂ Φ, matrix (n_atom, n_basis)
 """
 function f_energy_single(Θ, ϕ, n_atom)
     # all operations in scalar:
     ϵ = 0.
     for i ∈ 1:n_atom
-        A = f_A_single((@view Θ[:,1:2]), (@view ϕ[:,i]))
-        B = f_T0_single((@view Θ[:,3:4]), (@view ϕ[:,i]))
-        C = f_T0_single((@view Θ[:,5:6]), (@view ϕ[:,i]))
+        A = f_A_single(Θ[1:n_basis], Θ[n_basis+1 : 2*n_basis], (@view ϕ[:,i]))
+        B = f_T0_single(Θ[2*n_basis+1 : 3*n_basis], Θ[3*n_basis+1 : 4*n_basis], (@view ϕ[:,i]))
+        C = f_T0_single(Θ[4*n_basis+1 : 5*n_basis], Θ[5*n_basis+1 : 6*n_basis], (@view ϕ[:,i]))
         ϵ0 = A - √(B + C)
         ϵ += ϵ0
     end
