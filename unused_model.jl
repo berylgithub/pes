@@ -148,3 +148,24 @@ function f_z_bump!(output_mat, R, r_xy, N)
     # z:
     output_mat[:, :, end] = map(z_coord, t_xy);
 end
+
+
+"""
+unused tape for df energy
+"""
+function f_energy_closure(Θ_vec)
+    n_data, _, n_atom = size(Φ)
+    return map(i -> f_energy_single(Θ_vec, (@view Φ[i, :, :]), n_atom), 1:n_data)
+end
+
+function df_tape_energy(Θ_vec, Φ) # much much much slower (unfeasible)
+    n_data, n_basis, n_atom = size(Φ)
+    n_param = length(Θ_vec)
+    # use tape:
+    f_tape = ReverseDiff.JacobianTape(f_energy_closure, (Θ_vec))
+    compiled_f_tape = ReverseDiff.compile(f_tape)
+    inputs = Θ_vec
+    results = zeros(n_data, n_param)
+    ReverseDiff.jacobian!(results, compiled_f_tape, inputs)
+    return results
+end

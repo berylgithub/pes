@@ -12,6 +12,7 @@ using BenchmarkTools # selfexplanatory
 include("utils.jl")
 include("primitive_features.jl")
 include("advanced_features.jl")
+include("RATPOT.jl")
 
 """
 ===============
@@ -75,6 +76,18 @@ function f_energy(Θ, Φ)
 end
 
 """
+feval wrapper s.t. it accepts vector as tuning parameters instead of matrix or array.
+"""
+function f_energy_wrap(θ, Φ, n_basis)
+    Θ = Matrix{Float64}(undef, n_basis, 6)
+    for i ∈ 1:6
+        Θ[:, i] = θ[((i-1)*n_basis) + 1 : i*n_basis]
+    end
+    return vec(f_energy(Θ, Φ))
+end
+
+
+"""
 works for AD !!!
 """
 function f_energy_AD(Θ, Φ)
@@ -114,18 +127,46 @@ params:
     - Θ, vector (not matrix!!), (n_basis*6)
     - ϕ ⊂ Φ, matrix (n_atom, n_basis)
 """
-function f_energy_single(Θ, ϕ, n_atom)
+function f_energy_single(Θ, ϕ, bidx, n_atom)
     # all operations in scalar:
     ϵ = 0.
-    for i ∈ 1:n_atom
-        A = f_A_single(Θ[1:n_basis], Θ[n_basis+1 : 2*n_basis], (@view ϕ[:,i]))
-        B = f_T0_single(Θ[2*n_basis+1 : 3*n_basis], Θ[3*n_basis+1 : 4*n_basis], (@view ϕ[:,i]))
-        C = f_T0_single(Θ[4*n_basis+1 : 5*n_basis], Θ[5*n_basis+1 : 6*n_basis], (@view ϕ[:,i]))
+    @simd for i ∈ 1:n_atom
+        A = f_A_single(Θ[bidx[1]], Θ[bidx[2]], (@view ϕ[:,i]))
+        B = f_T0_single(Θ[bidx[3]], Θ[bidx[4]], (@view ϕ[:,i]))
+        C = f_T0_single(Θ[bidx[5]], Θ[bidx[6]], (@view ϕ[:,i]))
         ϵ0 = A - √(B + C)
         ϵ += ϵ0
     end
     return ϵ
 end
+
+"""
+wrapper for f_energy_single, loops over the data
+"""
+function f_energy_single_wrap(Θ, Φ, basis_indexes, n_data, n_atom)
+    V = Vector{Float64}(undef, n_data)
+    @simd for i ∈ 1:n_data
+        @inbounds V[i] = f_energy_single(Θ, (@view Φ[i, :, :]), basis_indexes, n_atom)
+    end
+    return V
+end
+
+"""
+df/dθ , f := f_energy for single data
+outputs:
+    - out, matrix, (n_param, n_data) ∈ Float64
+"""
+function df_energy(Θ, Φ, basis_indexes, n_data, n_atom, n_param)
+    out = Matrix{Float64}(undef, n_param, n_data)
+    @simd for i ∈ 1:n_data
+        @inbounds out[:,i] = ReverseDiff.gradient(x -> f_energy_single(x, (@view Φ[i, :, :]), basis_indexes, n_atom), Θ)
+    end
+    out = permutedims(out, [2, 1])
+    return out
+end
+
+
+
 
 """
 ===============
@@ -350,16 +391,7 @@ function f_pot_pre(R, H_coord, θ, indexer,
     return Φ
 end
 
-"""
-feval wrapper s.t. it accepts vector as tuning parameters instead of matrix or array.
-"""
-function f_energy_wrap(θ, Φ, n_basis)
-    Θ = Matrix{Float64}(undef, n_basis, 6)
-    for i ∈ 1:6
-        Θ[:, i] = θ[((i-1)*n_basis) + 1 : i*n_basis]
-    end
-    return vec(f_energy(Θ, Φ))
-end
+
 
 """
 === MAIN CALLERS
@@ -559,8 +591,8 @@ function multirestart()
 end
 
 function basis_precomp_opt_test()
-    homedir = "/users/baribowo/Code/Python/pes/" # for work PC only, julia bash isn't available.
-    #homedir = "" # default
+    #homedir = "/users/baribowo/Code/Python/pes/" # for work PC only, julia bash isn't available.
+    homedir = "" # default
     # compute optimal ratpot:
     data = readdlm(homedir*"data/h2/h2_ground_w.txt")
     R = data[:, 1]; V = data[:, 2]
@@ -600,22 +632,26 @@ function basis_precomp_opt_test()
     sub_X = X[1:siz, :, :];
 
     # hyperparams for feval:
-    max_d = 5; n_basis = 59
-    n_data, n_d = size(sub_R)
+    max_d = 5; 
+    n_basis = 59; n_data, n_d = size(sub_R); n_atom = 3
     ub = 1.; lb = -1.
+    basis_indexes = basis_index_gen(n_basis) # precompute param vector indexes
 
     # precompute basis!!:
     Φ = f_pot_pre(sub_R, sub_X, θ, atom_indexer(3), const_r_xy, d, max_d, n_basis, n_data, n_d)
 
     # optimize:
     Θ = rand(n_basis*6).* (ub-lb) .+ lb # tuning parameter
-    res = LsqFit.curve_fit((Φ, Θ) -> f_energy_wrap(Θ, Φ, n_basis),
-                            Φ, sub_V, Θ, show_trace=false, maxIter=1000)
-
+    t = @elapsed begin # timer
+        res = LsqFit.curve_fit((Φ, Θ) -> f_energy_single_wrap(Θ, Φ, basis_indexes, n_data, n_atom), 
+                                Φ, sub_V, Θ, show_trace=false, maxIter=1000)
+    end
     V_pred = f_energy_wrap(res.param, Φ, n_basis)
     for i=1:length(sub_V)
         println(sub_V[i]," ",V_pred[i])
     end
     println(f_RMSE(sub_V, V_pred))
+    println("elapsed multirestart time = ",t)
 end
 
+#basis_precomp_opt_test()
