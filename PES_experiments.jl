@@ -1,5 +1,6 @@
 include("utils.jl")
 include("primitive_features.jl")
+include("advanced_features.jl")
 include("PES_models_bonding_features.jl")
 include("RATPOT.jl")
 
