@@ -99,6 +99,14 @@ function atom_indexer(n_atom)
     return coord_idx
 end
 
+"""
+generator of basis indexes of the tuning parameters
+"""
+function basis_index_gen(n_basis)
+    return [1:n_basis, n_basis+1 : 2*n_basis, 
+            2*n_basis+1 : 3*n_basis, 3*n_basis+1 : 4*n_basis,
+            4*n_basis+1 : 5*n_basis, 5*n_basis+1 : 6*n_basis]
+end
 
 
 """
