@@ -339,8 +339,6 @@ function f_energy_AD(Θ, Φ)
     return ϵ
 end
 
-
-
 """
 single primitive OPs:
 """
@@ -362,7 +360,7 @@ end
 """
 single data f_energy
 params:
-    - Θ, vector, (n_basis*6)
+    - Θ, vector (not matrix!!), (n_basis*6)
     - ϕ ⊂ Φ, matrix (n_atom, n_basis)
 """
 function f_energy_single(Θ, ϕ, n_atom)
