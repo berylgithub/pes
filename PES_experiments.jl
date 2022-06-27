@@ -448,3 +448,131 @@ function multirestart_PES_features()
     println("test RMSE = ", f_RMSE(V_pred, V_test))
     println("elapsed multirestart time = ",t)
 end
+
+"""
+multirestart with Automatic Differentiation! and Pre-computed features!!
+"""
+function multirestart_pre_AD()
+    #homedir = "/users/baribowo/Code/Python/pes/" # for work PC only, julia bash isn't available.
+    homedir = "" # default
+
+    # compute optimal ratpot:
+    data = readdlm(homedir*"data/h2/h2_ground_w.txt")
+    R = data[:, 1]; V = data[:, 2]
+    siz = size(R)[1]
+    id_train = []; id_test = []
+    for i ∈ 1:siz
+        if i % 2 == 1
+            push!(id_train, i)
+        elseif i % 2 == 0
+            push!(id_test, i)
+        end
+    end
+    R_train = R[id_train]; R_test = R[id_test]
+    V_train = V[id_train]; V_test = V[id_test]
+    # hyperparam for linratpot:
+    const_r_xy = 1.4172946
+    V_min = minimum(V)
+    V_l = V[argmax(R)]
+    Δ = V_l - V_min
+
+    d = 18 # best d from experiment
+    θ, A, q = linratpot_cheb(V, R, const_r_xy, d, 1)
+    V_pred = A*θ
+    rmse = f_RMSE(V, V_pred)
+    armse = Δ*f_RMSE(δ_dissociate(V, V_pred, f_ΔV(V_pred, V_l, V_min)))
+    println(rmse," ",armse)
+
+    # data loader:    
+    H_data = readdlm(homedir*"data/h3/h3_data.txt") #H_data = readdlm(homedir*"data/h5/h5_data.txt")  # potential data
+    X = npzread(homedir*"data/h3/h3_coord.npy") #X = npzread(homedir*"data/h5/h5_coord.npy")  # atomic coordinates
+    R = H_data[:,1:end-1]; V = H_data[:, end]
+    siz = size(R)[1]
+    sub_R = R[1:siz,:];
+    sub_V = V[1:siz];
+    sub_X = X[1:siz, :, :];
+    println("data size =",siz)
+
+    # data split:
+    #=
+    idxes = shuffleobs(1:siz) # shuffle indexes
+    id_train, id_test = splitobs(idxes, at=0.8) # split train and test indexes
+    writedlm(homedir*"data/h3/index_train_H3.csv", id_train)
+    writedlm(homedir*"data/h3/index_test_H3.csv", id_test)
+    =#
+    # reuse split, usually for re-optimization, comment "data split" block when doing so (no automatic input? hazukashi~ shi~ shi~):
+    id_train = vec(readdlm(homedir*"data/h3/crossval_indices_1_train.txt", Int)) #id_train = vec(readdlm(homedir*"data/h5/crossval_indices_1_train.txt", Int)) #id_train = vec(readdlm(homedir*"data/h3/index_train_H3.csv", Int))
+    id_test = vec(readdlm(homedir*"data/h3/crossval_indices_1_test.txt", Int)) #id_test = vec(readdlm(homedir*"data/h5/crossval_indices_1_test.txt", Int)) #id_test = vec(readdlm(homedir*"data/h3/index_test_H3.csv", Int))
+
+    # split data by index:
+    R_train = sub_R[id_train,:]; V_train = sub_V[id_train];
+    R_test = sub_R[id_test,:]; V_test = sub_V[id_test]
+    X_train = sub_X[id_train,:,:]; X_test = sub_X[id_test,:,:]
+    println("train size = ",length(V_train))
+    println("test size = ", length(V_test))
+
+    # hyperparams for feval of train data:
+    max_d = 5; 
+    n_basis = 59; n_data, n_d = size(R_train); n_atom = 3
+    basis_indexes = basis_index_gen(n_basis) # precompute param vector indexes
+    idxer = atom_indexer(n_atom)
+    println("n_atom = ",n_atom)
+
+    # precompute basis for training!!:
+    Φ = f_pot_pre(R_train, X_train, θ, idxer, const_r_xy, d, max_d, n_basis, n_data, n_d)
+
+    #tuning param:
+    ub = 1.; lb = -1.
+    n_param = n_basis*6
+    Θ = rand(n_param).* (ub-lb) .+ lb # tuning parameter
+    
+    restarts = 100 # number of restarts for the multirestart method
+    min_rmse = Inf
+    Θ_min = zeros(n_param)
+    V_pred = f_energy_wrap(Θ, Φ, n_basis)
+
+    t = @elapsed begin # timer
+        for iter=1:restarts
+            # precheck nan:
+            while any(isnan.(V_pred)) # reset until no nan:
+                println("resetting NaNs!!")
+                Θ = rand(n_param).* (ub-lb) .+ lb
+                res = LsqFit.curve_fit((Φ, Θ) -> f_energy_wrap(Θ, Φ, n_basis), (Φ, Θ) -> df_energy(Θ, Φ, basis_indexes, n_data, n_atom, n_param),
+                                Φ, V_train, Θ, show_trace=false, maxIter=2)
+                V_pred = f_energy_wrap(res.param, Φ, n_basis)
+            end
+            # optimize
+            Θ = rand(n_param).* (ub-lb) .+ lb
+            res = LsqFit.curve_fit((Φ, Θ) -> f_energy_wrap(Θ, Φ, n_basis), (Φ, Θ) -> df_energy(Θ, Φ, basis_indexes, n_data, n_atom, n_param),
+                                Φ, V_train, Θ, show_trace=false, maxIter=1000)
+            V_pred = f_energy_wrap(res.param, Φ, n_basis)
+            # write intermediate params to file 
+            writedlm(homedir*"params/h3/multirestart/c_"*string(iter)*".csv", Θ) #writedlm(homedir*"params/h5/multirestart/c_"*string(iter)*".csv", Θ)
+            
+            # sort RMSE:
+            rmse = f_RMSE(V_train, V_pred)
+            println("optimized, restart = ",iter," rmse = ",rmse)
+            if rmse < min_rmse
+                println("better rmse found!, rmse = ", rmse)
+                min_rmse = rmse
+                Θ_min = res.param
+            end
+        end
+    end # end of timer
+    # save param with best RMSE:
+    writedlm(homedir*"params/h3/minimizer_H3_cvindices.csv", Θ_min) #writedlm(homedir*"params/h5/minimizer_H5.csv", Θ_min)
+    x = readdlm(homedir*"params/h3/minimizer_H3_cvindices.csv", '\t') #x = readdlm(homedir*"params/h5/minimizer_H5.csv", '\t')
+    
+    # test data evaluation:
+    n_data, n_d = size(R_test)
+    Φ = f_pot_pre(R_test, X_test, θ, idxer, const_r_xy, d, max_d, n_basis, n_data, n_d)
+    V_pred = f_energy_wrap(x, Φ, n_basis)
+    #=
+    for i=1:length(V_test)
+        println(V_test[i]," ",V_pred[i])
+    end
+    =#
+    println("min train RMSE = ",min_rmse)
+    println("test RMSE = ", f_RMSE(V_pred, V_test))
+    println("elapsed multirestart time = ",t)
+end

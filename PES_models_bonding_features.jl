@@ -389,8 +389,6 @@ function f_pot_pre(R, H_coord, θ, indexer,
     return Φ
 end
 
-
-
 """
 === MAIN CALLERS
 """
@@ -623,7 +621,7 @@ function basis_precomp_opt_test()
     # load atomic coordinates:
     X = npzread(homedir*"data/h3/h3_coord.npy")
     R = H_data[:,1:end-1]; V = H_data[:, end]
-    siz = 100
+    siz = size(R)[1]
     sub_R = R[1:siz,:];
     sub_V = V[1:siz];
     sub_X = X[1:siz, :, :];
@@ -643,6 +641,7 @@ function basis_precomp_opt_test()
     t = @elapsed begin # timer
         res = LsqFit.curve_fit((Φ, Θ) -> f_energy_wrap(Θ, Φ, n_basis), (Φ, Θ) -> df_energy(Θ, Φ, basis_indexes, n_data, n_atom, n_param),
                                 Φ, sub_V, Θ, show_trace=false, maxIter=1000)
+  
     end
     V_pred = f_energy_wrap(res.param, Φ, n_basis)
     for i=1:length(sub_V)
