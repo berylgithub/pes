@@ -142,6 +142,7 @@ end
 
 """
 wrapper for f_energy_single, loops over the data
+!! currently the fastest for autodiff, however 30x slower for feval
 """
 function f_energy_single_wrap(Θ, Φ, basis_indexes, n_data, n_atom)
     V = Vector{Float64}(undef, n_data)
@@ -164,9 +165,6 @@ function df_energy(Θ, Φ, basis_indexes, n_data, n_atom, n_param)
     out = permutedims(out, [2, 1])
     return out
 end
-
-
-
 
 """
 ===============
@@ -625,7 +623,6 @@ function basis_precomp_opt_test()
     # load atomic coordinates:
     X = npzread(homedir*"data/h3/h3_coord.npy")
     R = H_data[:,1:end-1]; V = H_data[:, end]
-    n_data = size(R)[1]
     siz = 100
     sub_R = R[1:siz,:];
     sub_V = V[1:siz];
@@ -642,8 +639,9 @@ function basis_precomp_opt_test()
 
     # optimize:
     Θ = rand(n_basis*6).* (ub-lb) .+ lb # tuning parameter
+    n_param = length(Θ)
     t = @elapsed begin # timer
-        res = LsqFit.curve_fit((Φ, Θ) -> f_energy_single_wrap(Θ, Φ, basis_indexes, n_data, n_atom), 
+        res = LsqFit.curve_fit((Φ, Θ) -> f_energy_wrap(Θ, Φ, n_basis), (Φ, Θ) -> df_energy(Θ, Φ, basis_indexes, n_data, n_atom, n_param),
                                 Φ, sub_V, Θ, show_trace=false, maxIter=1000)
     end
     V_pred = f_energy_wrap(res.param, Φ, n_basis)
