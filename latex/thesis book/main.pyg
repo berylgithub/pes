@@ -1,0 +1,7 @@
+f_partial_energy(E, Phi):
+    V_part_mat = matrix((2,n_basis), type="real")
+    for k=0,1,...,n_basis:
+        V_part_mat[0][k] = E[0][k]*Phi[i][k]
+        V_part_mat[1][k] = E[1][k]*Phi[i][k]
+    V_part = f_smooth_rat(V_part_mat) # some smooth rational function
+    return V_part

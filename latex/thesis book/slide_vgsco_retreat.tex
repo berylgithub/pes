@@ -19,6 +19,8 @@
 \setbeamertemplate{section in toc}[sections numbered]
 \setbeamertemplate{subsection in toc}[subsections numbered]
 \setbeamertemplate{footline}[frame number]
+%
+\setbeamertemplate{caption}{\raggedright\insertcaption\par}
 
 \newcommand\Fontvi{\fontsize{8}{7.2}\selectfont} %font size changer
 
@@ -46,13 +48,13 @@
 {
     Joint work with Prof. Arnold Neumaier\\
     Faculty of Mathematics\\
-    University of Vienna
+    University of Vienna \\
+
 }
 
 %\date[VGSCO 2021] % (optional)
+\date[]{VGSCO Retreat \\ June 12, 2022}
 
-\date{\today}
-%{VGSCO retreat}
 
 \begin{document}
 
@@ -74,6 +76,7 @@
 \section{Pair potential review}
 \subsection{Pair potential review}
 \begin{frame}{Pair potential review}
+    \fontsize{9}{6}\selectfont
     \begin{columns}
         \begin{column}{0.5\textwidth}
             \begin{figure}[H]
@@ -82,27 +85,27 @@
                 \label{fig:ozone}
             \end{figure}
             \begin{equation}
-                V(R) = \frac{{\color{orange}\theta}_1}{R^{-12}} - \frac{{\color{orange}\theta}_2}{R^{-6}}
+                V(R) = \frac{{\color{orange}\theta}_1}{R^{12}} - \frac{{\color{orange}\theta}_2}{R^{6}}
             \end{equation}
             \begin{equation}
                 V(R) = \frac{{\color{orange}\theta}_0 + {\color{orange}\theta}_1R + .. + {\color{orange}\theta}_nR^n}{{\color{orange}\theta}_0 + {\color{orange}\theta}_1R + .. + {\color{orange}\theta}_{n+6}R^{n+6}}
             \end{equation}
             \begin{itemize}
-                \item Repulsive term $\approx \mathcal{O}(R^{-12})$
-                \item Attractive term $\approx \mathcal{O}(R^{-6})$
+                \item Repulsive term $\approx {\color{cyan}\mathcal{O}(R^{-12})}$ (LJ), or ${\color{cyan}\mathcal{O}(R^{-1})}$ (Quantum theory).
+                \item Attractive term $\approx {\color{cyan}\mathcal{O}(R^{-6})}$ (Van der Waals \& Quantum theory).
             \end{itemize}
         \end{column}
         \begin{column}{0.5\textwidth}
             \begin{figure}[htbp]
                 \centering
-                    \includegraphics[scale=0.18]{img/slide/lennard_jones_potential_edit.png}
+                \includegraphics[scale=0.18]{img/slide/lennard_jones_potential_edit.png}
                 \label{fig:ozone}
             \end{figure}
         \end{column}
     \end{columns}
 \end{frame}
 
-\begin{frame}{Linearization?}
+\begin{frame}{Linear representation}
     Goals: 
     \begin{itemize}
         \item "no training", much faster to compute.
@@ -124,20 +127,30 @@
 \begin{frame}{Overview I}
     \begin{figure}[H]
         \centering
-            \includegraphics[scale=0.4]{img/slide/bonding_features.png}
+            \includegraphics[scale=0.3]{img/slide/bonding_features.png}
         \label{fig:bonding_features}
     \end{figure}
+    \begin{itemize}
+        \item Image: rotation invariant, captures local properties, etc.
+        \item Molecules: permutation invariant (indistinguishable particles), translation + rotation invariant.
+    \end{itemize}
 \end{frame}
 
 \begin{frame}{Overview II}
+    %\fontsize{6.5}{3}\selectfont
+    Motivation:
+    \begin{itemize}
+        \item \textbf{CHIPR} (Varandas et al, 2021): $x+y \leq 4$, does not scale with \# of atom.
+        \item \textbf{Neural Network} (Behler et al, 2013): scales better but slow to train.
+    \end{itemize}
     Bonding features for $n_\text{atom} > 2$:
     \begin{itemize}
-        \item Primitive features:
+        \item Primitive features (for atom pairs: HH, HO, OO):
         \begin{itemize}
             \item {\color{olive}b}, bonding functions.
-            \item {\color{olive}z}, bump functions.
+            \item {\color{olive}z}, bumps and wavelets.
         \end{itemize}
-        \item Advanced features (monomials for basis functions):
+        \item Advanced features (monomials for basis functions, each monomial is in the form of ${\color{blue}X}[i]$, where $i$ is atom index):
         \begin{itemize}
             \item {\color{blue}$U$}, the reference pair potential.
             \item {\color{blue}$Y$}, the coordination vectors.
@@ -148,7 +161,7 @@
             \item Embedded atom model (sum of neighbourhood energies).
         \end{itemize}
     \end{itemize}
-    Each monomial is in the form of ${\color{blue}X}[i]$, where $i$ is atom index.
+    
 \end{frame}
 
 % add slides accordingly below:
@@ -174,7 +187,9 @@
     \end{equation}
     \begin{figure}[H]
         \centering
-            \includegraphics[scale=0.33]{img/slide/bonding_functions.png}
+        \fontsize{6.5}{6}\selectfont
+            \includegraphics[scale=0.3]{img/slide/bonding_functions.png}
+        \caption{\fontsize{6}{6}\selectfont (Hager-Roiser, 2020)}
         \label{fig:bonding_functions}
     \end{figure}
 \end{frame}
@@ -187,15 +202,15 @@
             \begin{itemize}
                 \item Scale: $\rho := R/{\color{red}R_{AB}}$
                 \item Shift: $q := \frac{\color{red}{N}}{1+\rho} \in (0, N]$
-                \item Bump: $h_k := h_k(q) = [1 - (q - k)^2]^3_+$
+                \item $h_k := h_k(q) = [1 - (q - k)^2]^3_+$
                 \item $u := u(q) =  \sum^N\limits_{k=0}({\color{orange}\theta}_k(q-k)+{\color{orange}\theta}_{k+N+1})h_k$
                 \item $w := w(q) = \sum h_k$
             \end{itemize}
-            Basic feature:
+            Basic features := (bumps, wavelets):
             \begin{equation}
                 {\color{olive}z}_{ij} := (h_k/w, (q-k)h_k/w).
             \end{equation}
-            Linearization?
+            Linear representation:
             \begin{equation}
                 \begin{split}
                     u & := \sum \left(\frac{h_k(q)}{w(q)}{\color{orange}\theta}_k + \frac{(q-k)h_k(q)}{w(q)}{\color{orange}\theta}_{k+N+1}\right) \\
@@ -224,7 +239,7 @@
 \begin{frame}{Bump functions III}
     \begin{figure}[H]
         \centering
-            \includegraphics[scale=0.33]{img/BUMP/BUMP_qhw_N=7.png}
+            \includegraphics[scale=0.33]{img/BUMP/wavelets_qhw_N=7.png}
         \label{fig:bumpxy}
     \end{figure}
 \end{frame}
@@ -246,7 +261,7 @@
                 0 & \text{ else}
             \end{cases}
         \end{equation}
-        \item RATPOT$_{x=1,2,..}$ ({\color{blue} most expensive, most accurate})
+        \item RATPOT$_{1,2,..}$ ({\color{blue} most expensive, most accurate})
         \item Bump functions. ({\color{blue} middle ground})
         \item Linearized pair-pot. (\color{blue} pre-computed!, accuracy=?)
     \end{itemize}
@@ -255,16 +270,17 @@
 \begin{frame}{Coordination vectors}
     Coordination vectors:
     \begin{equation}
-        {\color{blue}Y}_{\color{red}d}[i] := \sum_{j\neq i}{\color{olive}\hat{b}}_{ij{\color{red}d}}
+        {\color{blue}Y}_{\color{red}d}[i] := \sum_{j\neq i}{\color{olive}\hat{p}}_{ij{\color{red}d}},
     \end{equation}
+    where ${\color{olive}\hat{p}} = {\color{olive}b}$ or ${\color{olive}\hat{p}} = {\color{olive}z}$.
     \begin{itemize}
-        \item ${\color{blue}Y}_1[i] \approx $ \textbf{coordination number} of atom $i$, if ${\color{olive}\hat{b}} = {\color{olive}b}$.
+        \item ${\color{blue}Y}_1[i]$ on the repulsive part $\approx $ \textbf{coordination number} of atom $i$.
     \end{itemize}
     \begin{columns}
         \begin{column}{0.5\textwidth}
             \begin{figure}[H]
                 \centering
-                    \includegraphics[scale=0.33]{img/slide/triatom_covalent.png}
+                    \includegraphics[scale=0.3]{img/slide/triatom_covalent.png}
                 \label{fig:triatom_covalent}
             \end{figure}
         \end{column}
@@ -275,20 +291,33 @@
 \end{frame}
 
 \begin{frame}{Gram matrices}
+\fontsize{10}{6}\selectfont
     The components of the Gram matrices ${\color{blue}G}[i]$:
     \begin{equation}
         {\color{blue}G}[i]_{{\color{red}d}_1{\color{red}d}_2} := r_{{\color{red}d}_1}[i] \cdot r_{{\color{red}d}_2}[i],
     \end{equation}
     where
     \begin{equation}
-        r_{\color{red}d}[i] := \sum_{j \neq i} {\color{olive}\hat{b}}_{ij{\color{red}d}}(x_j - x_i) \in \mathbb{R}^3.
+        r_{\color{red}d}[i] := \sum_{j \neq i} {\color{olive}\hat{p}}_{ij{\color{red}d}}(x_j - x_i) \in \mathbb{R}^3.
     \end{equation}
-    The Gram matrices:
-    \begin{itemize}
-        \item are positive semidefinite matrices.
-        \item are invariant to translations, rotations, and reflections.
-        \item contain implicit information of bond angles and torsion angles.
-    \end{itemize}
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \fontsize{9}{6}\selectfont
+            The Gram matrices:
+            \begin{itemize}
+                \item are invariant to translations, rotations, and reflections.
+                \item contain implicit information of {\color{blue}bond angles} and {\color{red}torsion angles}.
+            \end{itemize}
+        \end{column}
+        \begin{column}{0.5\textwidth}
+            \begin{figure}[H]
+                \centering
+                    \includegraphics[scale=0.3]{img/slide/angles.png}
+                \label{fig:triatom_covalent}
+            \end{figure}
+        \end{column}
+    \end{columns}
+    
 \end{frame}
 
 \iffalse
@@ -315,7 +344,7 @@
         \end{equation}
         \item Atomic energy:
         \begin{equation}
-            \epsilon_0 = A[i] - \sqrt{B[i] + C[i]},
+            \epsilon_0[i] = A[i] - \sqrt{B[i] + C[i]},
         \end{equation}
         where $A$ is of the form
         \begin{equation}
@@ -343,9 +372,11 @@
 \end{frame}
 
 \begin{frame}{Programming aspects}
+\fontsize{8.5}{6}\selectfont
     \begin{itemize}
         \item Pre-computations:
         \begin{itemize}
+            \fontsize{8.5}{10}\selectfont
             \item Distances $\to$ coordinates, whenever coordinates are not available.
             \item Atomic indexer, e.g., $n_\text{atom} = 4$:
             \begin{equation*}
@@ -361,6 +392,7 @@
         \end{itemize}
         \item Objective functions:
         \begin{itemize}
+            \fontsize{8.5}{10}\selectfont
             \item Standard $f:\mathbb{R}^{n_\text{data}} \to \mathbb{R}$
             \item Nonlinear least-squares residuals $f:\mathbb{R}^{n_\text{data}} \to \mathbb{R}^{n_\text{data}}$
         \end{itemize}
@@ -369,27 +401,172 @@
             \begin{center}
                 \includegraphics[width = 1cm]{img/slide/Julia_Programming_Language_Logo.svg.png} \hspace*{7cm}
             \end{center}
+            \textbf{speed} $\approx$ Fortran; \textbf{convenience} of Python, Matlab.
     \end{itemize}
 \end{frame}
 
 \begin{frame}{Numerical results}
-    *** insert result table here
+    \begin{table}[]
+        \caption{Current best obtained RMSE (in Hartree)}
+        \begin{tabular}{lcc}
+            \hline \hline
+            Data & NeighbourPOT & CHIPR \\             
+            \hline \hline
+            H$_3$ train & $7$e$-4$ & $7$e$-4$ \\ 
+            H$_3$ test & $3$e$-3$ & {\color{blue}$8$e$-4$} \\
+            H$_4$ train & {\color{blue}$1$e$-6$} & $2.3$ \\
+            H$_4$ test & {\color{blue}$4$e$-6$} & $2.3$ \\
+            H$_5$ train & {\color{blue}$1$e$-2$} & N/A \\
+            H$_5$ test & {\color{blue}$4$e$-2$} & N/A \\
+        \end{tabular}
+    \end{table}
+    \vspace{0.5cm}
+    \begin{itemize}
+        \item Data split: train$:$test = $80\%:20\%$.
+        \item Uses multistart for the optimization routine.
+    \end{itemize}
 \end{frame}
 
 \section{Extra}
+\iffalse
 \title{Intro to automatic differentiation ({\color{red}+ Julia})}
 \author{Beryl}
 \begin{frame}
 \maketitle
 \end{frame}
+\fi
 
-\subsection{"Differentiation" overview}
-\subsection{Forward mode}
-\subsection{Reverse mode}
-\subsection{Julia example}
+\begin{frame}{Extra}
+    \begin{beamercolorbox}[colsep=-4bp,rounded=true,shadow=true,ht=0.3cm,dp=0.3cm,center]{title}
+            \usebeamerfont{title} \usebeamercolor*[fg]{title}Intro to automatic differentiation ({\color{red}\textbf{+ Julia}})
+    \end{beamercolorbox}
+\end{frame}
+
+\begin{frame}{"Differentiation" overview}
+    \fontsize{8.5}{6}\selectfont
+    \begin{itemize}\fontsize{8.5}{6}\selectfont
+        \item Three well known classes: \textbf{symbolic} differentiation, \textbf{finite} difference, {\color{red} \textbf{automatic} differentiation}.
+        \item \textbf{Finite} difference:
+        \begin{itemize}\fontsize{8.5}{6}\selectfont
+            \item \textbf{(+)} General, easiest to implement.
+            \item (-) Inaccurate (approximate), slow, \textbf{commits cardinal sins of numerical computation}: “\textit{thou shalt not add small numbers to big numbers}”, and “\textit{thou shalt not subtract numbers which are approximately equal}” (Baydin et al, 2018).
+        \end{itemize}
+        \item \textbf{Symbolic} differentiation:
+        \begin{itemize}
+        \fontsize{8.5}{6}\selectfont
+            \item \textbf{(+)} Accurate (exact)
+            \item (-) Not general, cumbersome to implement (expression complexity grows rapidly by addition of new variables).
+        \end{itemize}
+        \item \fontsize{8.5}{6}\selectfont {\color{red} \textbf{Automatic} differentiation}: computes the derivative of a function by "reading" the function's algorithm. Modes: \textbf{Forward} AD, \textbf{Reverse} AD.
+        \begin{itemize}
+        \fontsize{8.5}{6}\selectfont
+            \item \textbf{(+)} Accurate (exact), fast, general.
+            \item (-) ?
+        \end{itemize}
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Forward mode}
+    \fontsize{9}{6}\selectfont
+    \begin{itemize}
+        \item Computes the derivative alongside the function value at the same time (\textbf{forward sweep}).
+        \item Uses \textbf{dual number} property and \textbf{function overloading} in programming. (\textbf{* dual number}: {\color{red}\textbf{$\epsilon^2 = 0$, $\epsilon \neq 0$}}.)
+    \end{itemize}
+    Simple example, compute $df/dx$ and $df/dy$ at $(1,2)$ by \textbf{forward} mode, and \textbf{reverse} mode, where
+    \begin{equation}
+        \begin{split}
+            f(x, y) & = (x + y)(x + 1) \\
+            f(1, 2) & = 6.
+        \end{split}
+        \label{eq:fad}
+    \end{equation}
+    Manual differentiation:
+    \begin{equation}
+        \begin{split}
+            df/dx & = 2x + y + 1 \\
+            & = 2(1) + 2 + 1 = {\color{blue}5},
+        \end{split}
+        \label{eq:dfdx}
+    \end{equation}
+    \begin{equation}
+        \begin{split}
+            df/dy & = x + 1 \\
+            & = 1 + 1 = {\color{blue}2}.
+        \end{split}
+        \label{eq:dfdy}
+    \end{equation}
+\end{frame}
+
+\begin{frame}{Forward mode II}
+    \textbf{Forward mode}: evaluate $f({\color{blue}1+\epsilon}, 2)$ for $df/{\color{blue}dx}$, $f(1, {\color{blue}2+\epsilon})$ for $df/{\color{blue}dy}$:
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \begin{equation}
+                \begin{split}
+                    df/dx & = f({\color{blue}1+\epsilon}, 2) \\
+                    & = ({\color{blue}1+\epsilon}+2)({\color{blue}1+\epsilon}+1) \\
+                    & = 6+5\epsilon+{\color{red}\epsilon^2} \\
+                    & = 6 + {\color{blue}5\epsilon}.
+                \end{split}
+            \end{equation}
+        \end{column}
+        \vrule{}
+        \begin{column}{0.5\textwidth}
+            \begin{equation}
+                \begin{split}
+                    df/dy & = f(1, {\color{blue}2+\epsilon}) \\
+                    & = (1 + {\color{blue}2 + \epsilon})(1+1) \\
+                    & = 6 + {\color{blue}2\epsilon}.
+                \end{split}
+            \end{equation}
+        \end{column}
+    \end{columns}
+    \vspace{0.3cm}
+\end{frame}
+
+\begin{frame}{Reverse mode}
+    \fontsize{9}{6}\selectfont
+    \textbf{Reverse mode}: {\color{blue}forward} sweep to compute {\color{blue}$f(x,y)$}, then {\color{red}\textit{backward}} to compute both {\color{red}$df/dx$} and {\color{red}$df/dy$}.
+     \begin{figure}[H]
+        \centering
+            \includegraphics[scale=0.5]{img/slide/reversediff.png}
+        \label{fig:reversediff}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Code example}
+\fontsize{7}{6}\selectfont
+    AD usage example:
+    \begin{figure}[H]
+        \centering
+            \includegraphics[scale=0.35]{img/slide/autodiff_julia.png}
+        \label{fig:reversediff}
+    \end{figure}
+    
+    Usage for optimization example:
+    \begin{figure}[H]
+        \centering
+            \includegraphics[scale=0.27]{img/slide/autodiff_julia_opt.png}
+        \label{fig:reversediff}
+    \end{figure}
+\end{frame}
+
+
+%\subsection{"Differentiation" overview}
+%\subsection{Forward mode}
+%\subsection{Reverse mode}
+%\subsection{Julia example}
 
 
 \begin{frame}{References}
+\fontsize{7}{6}\selectfont
+\begin{itemize}
+    \item [1.] U. Hager-Roiser. The potential energy surface of hydrogen clusters. MA thesis. University of Vienna, 2020.
+    \item [2.] C. M. R. Rocha and A. J. C. Varandas. A general code for fitting global potential energy surfaces via CHIPR method: Direct-Fit Diatomic and tetratomic molecules. In: Computer Physics Communications 258 (2021), p. 107556. issn: 0010-4655. doi: 10.1016/j.cpc.2020.107556.
+    \item [3.] Jörg Behler. Neural network potential-energy surfaces in chemistry: a tool for large-scale simulations. In: Phys. Chem. Chem. Phys. 13 (40 2011), pp. 17930–17955. doi: 10.1039/C1CP21668F.
+    \item [4.] Atilim Gunes Baydin, Barak A. Pearlmutter, Alexey Andreyevich Radul, Jeffrey Mark Siskind. Automatic differentiation in machine learning: a survey. The Journal of Machine Learning Research, 18(153):1--43, 2018.
+    \item [5.] Jeff Bezanson, Alan Edelman, Stefan Karpinski, and Viral B. Shah. 2017. Julia: A fresh approach to numerical computing. SIAM Rev. 59, 1 (2017), 65–98.
+\end{itemize}
     
 \end{frame}
 
