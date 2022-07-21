@@ -24,6 +24,9 @@
 %\usepackage{minted}
 \usepackage{accents}
 \usepackage{float}
+\usepackage{algorithm}
+\usepackage{algorithmicx}
+\usepackage{algpseudocode}
 % set parameters:
 \newcommand{\ubar}[1]{\underaccent{\bar}{#1}}
 \newlength{\maxmin}
@@ -44,23 +47,69 @@
 \begin{document}
 
 \section{Completeness of molecular features}
-Features of a molecular geometry (or configuration) is said to be complete if they describe distinct (numerical) values for each distinct molecular geometry; otherwise if the features of distinct geometries result in equal numerical value, then the features are incomplete. One way to check the completeness is by conducting a quality test of the molecular features.
+Features of a molecular geometry (or configuration) is said to be complete if they describe distinct (numerical) values for each distinct molecular geometry; otherwise if the features of some distinct geometries result in equal numerical value, then the features are incomplete. One way to check the completeness is by conducting a quality test of the molecular features.
+
 Consider the lattices
 \begin{equation}
-    \mathcal{L} = \sqrt[]{2}Z_3, D_3,
+    \mathcal{L} = \sqrt{2}Z_3, D_3,
 \end{equation}
 they have a fixed set of distances
 \begin{equation}
     \mathcal{D} := \{0, \sqrt{2}, \sqrt{4}, \sqrt{6}, \sqrt{8}, \sqrt{10}, ...\}.
 \end{equation}
-Let $x = (x_1, x_2, x_3)$ be the 3D-cartesian coordinates, and let
+The coordinates of $\mathcal{L} = \sqrt{2}Z_3$ lattice are defined by
+\begin{equation}
+    x:= (\sqrt{2}x_1, \sqrt{2}x_2, \sqrt{2}x_3), \text{ where } x_i \in \mathbb{Z},
+    \label{eq:completeness_Z_set}
+\end{equation}
+meanwhile the coordinates of $\mathcal{L} = D_3$ are defined by
+\begin{equation}
+    x:= (x_1, x_2, x_3), \text{ where } \sum_i x_i \text{ is even and } x_i \in \mathbb{Z}.
+    \label{eq:completeness_D_set}
+\end{equation}
+Let
 \begin{equation}
     S := \{x \mid \left\| x\right\|_2 < 3 \},
+    \label{eq:completeness_distance_set}
 \end{equation}
 which implies the feasible set of distances
 \begin{equation}
     \mathcal{D_F} := \{0, \sqrt{2}, \sqrt{4}, \sqrt{6}, \sqrt{8}\}.
 \end{equation}
+For all possible combinations of $x_i \in \mathbb{Z}$, if (\refeq{eq:completeness_Z_set}) and (\refeq{eq:completeness_D_set}) must satisfy (\refeq{eq:completeness_distance_set}), then we can define
+\begin{equation}
+    \begin{split}
+        A:= \{ x \mid \left\| x \right\|_2^2 \leq 4\}, \\
+        B:= \{ x \mid \left\| x \right\|_2^2 \leq 8\},
+    \end{split}
+    \label{eq:completeness_lattice_set}
+\end{equation}
+where the set $A$ corresponds to $\mathcal{L} = \sqrt{2}Z_3$, and $B$ corresponds to $\mathcal{L} = D_3$; this implies
+\begin{equation}
+    x_i \in \{0, \pm 1, \pm 2\}.
+\end{equation}
+
+The goal here is to find the "counterexamples" of features completeness, by using the features computed from $x_i$ data. 
+The algorithm is as shown in Alg.(\refeq{alg:completeness_check}). In this case, $N$ corresponds to the number of atoms in the molecule, where $N > 3$ is of interest.
+
+
+\begin{algorithm}
+    \caption{Completeness check}
+    \label{alg:completeness_check}
+    \begin{algorithmic}[1]
+        \For{each $\mathcal{L}$ and each size $N$}
+        \State pick random $R \subset S$ with size $N$
+        \State compute the feature vector $v$ from $R$
+        \If{ a}
+            \State 1
+        \Else{ b}
+            \State 2
+        \EndIf
+        \EndFor
+    \end{algorithmic}
+\end{algorithm}
+
+
 
 \end{document}
 
