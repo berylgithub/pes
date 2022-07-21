@@ -1,0 +1,69 @@
+\documentclass[12pt]{article}
+
+% Language setting
+% Replace `english' with e.g. `spanish' to change the document language
+\usepackage[english]{babel}
+
+% Set page size and margins
+% Replace `letterpaper' with`a4paper' for UK/EU standard size
+\usepackage[letterpaper,top=2cm,bottom=2cm,left=3cm,right=3cm,marginparwidth=1.75cm]{geometry}
+
+% Useful packages:
+\usepackage{braket}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage[colorlinks=true, allcolors=blue]{hyperref}
+%\usepackage{unicode-math}
+\usepackage{mathtools}
+\usepackage{amsfonts}
+\usepackage{booktabs}
+\usepackage{caption} 
+\captionsetup[table]{skip=5pt}
+\usepackage{calc}
+\usepackage[section]{placeins}
+%\usepackage{minted}
+\usepackage{accents}
+\usepackage{float}
+% set parameters:
+\newcommand{\ubar}[1]{\underaccent{\bar}{#1}}
+\newlength{\maxmin}
+\setlength{\maxmin}{\widthof{$\max$}-\widthof{$\min$}}
+\setcounter{tocdepth}{4}
+\setcounter{secnumdepth}{4}
+
+% macros:
+\def\D{\displaystyle}
+\def\att{                    % mark at the margin
+        \marginpar[ \hspace*{\fill} \raisebox{-0.2em}{\rule{2mm}{1.2em}} ]
+        {\raisebox{-0.2em}{\rule{2mm}{1.2em}} }
+        }
+\def\at#1{[*** \att #1 ***]}  % text needing attention
+\def\spc{\hspace*{0.5cm}} 			% indentation
+
+
+\begin{document}
+
+\section{Completeness of molecular features}
+Features of a molecular geometry (or configuration) is said to be complete if they describe distinct (numerical) values for each distinct molecular geometry; otherwise if the features of distinct geometries result in equal numerical value, then the features are incomplete. One way to check the completeness is by conducting a quality test of the molecular features.
+Consider the lattices
+\begin{equation}
+    \mathcal{L} = \sqrt[]{2}Z_3, D_3,
+\end{equation}
+they have a fixed set of distances
+\begin{equation}
+    \mathcal{D} := \{0, \sqrt{2}, \sqrt{4}, \sqrt{6}, \sqrt{8}, \sqrt{10}, ...\}.
+\end{equation}
+Let $x = (x_1, x_2, x_3)$ be the 3D-cartesian coordinates, and let
+\begin{equation}
+    S := \{x \mid \left\| x\right\|_2 < 3 \},
+\end{equation}
+which implies the feasible set of distances
+\begin{equation}
+    \mathcal{D_F} := \{0, \sqrt{2}, \sqrt{4}, \sqrt{6}, \sqrt{8}\}.
+\end{equation}
+
+\end{document}
+
+
+
+    
