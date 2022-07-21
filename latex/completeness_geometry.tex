@@ -89,22 +89,33 @@ where the set $A$ corresponds to $\mathcal{L} = \sqrt{2}Z_3$, and $B$ correspond
     x_i \in \{0, \pm 1, \pm 2\}.
 \end{equation}
 
-The goal here is to find the "counterexamples" of features completeness, by using the features computed from $x_i$ data. 
+The goal here is to find the "counterexamples" of the completeness, by using the features computed from $x_i$ data. 
 The algorithm is as shown in Alg.(\refeq{alg:completeness_check}). In this case, $N$ corresponds to the number of atoms in the molecule, where $N > 3$ is of interest.
 
 
 \begin{algorithm}
     \caption{Completeness check}
     \label{alg:completeness_check}
-    \begin{algorithmic}[1]
+    \begin{algorithmic}[1] 
         \For{each $\mathcal{L}$ and each size $N$}
-        \State pick random $R \subset S$ with size $N$
-        \State compute the feature vector $v$ from $R$
-        \If{ a}
-            \State 1
-        \Else{ b}
-            \State 2
-        \EndIf
+            \State Let $\Gamma$ be an empty storage.
+            \State Pick random subset $T \in \mathbb{R}^{N \times 3} \subset S$, 
+            and scale $T$ such that the smallest distance is the pair-potential equilibrium distance $r_\text{eq}$.
+            \State Compute the feature vector $v$ from $T$.
+            \If{$\Gamma \neq \emptyset$}
+                \State compare $(T,v)$ with $(T_i, v_i) \in \Gamma, i = 1,2,...,|\Gamma|$, 
+                for each pairing comparison: 
+                \If{the feature vector $v \equiv v_i$} 
+                    \State check for the isomorphism of $T$ and $T_i$:
+                    \If{not isomorphic}
+                        \State mark $(T, v)$ as an counterexample,
+                    \ElsIf{isomorphic} 
+                        \State skip $i$.
+                    \EndIf
+                \EndIf
+            \EndIf
+            \State Append $(T,v)$ to $\Gamma$.
+            \State Repeat until no new possible entries to be added. 
         \EndFor
     \end{algorithmic}
 \end{algorithm}
