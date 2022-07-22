@@ -13,7 +13,7 @@
 \usepackage{amsmath}
 \usepackage{graphicx}
 \usepackage[colorlinks=true, allcolors=blue]{hyperref}
-\usepackage{unicode-math}
+%\usepackage{unicode-math}
 \usepackage{mathtools}
 \usepackage{amsfonts}
 \usepackage{booktabs}
@@ -1506,7 +1506,6 @@ Using this, we find
 We assume that all summations run over all points ($N$ atom points), i.e.,
 \begin{equation}
     k = 1,..,N;
-    \label{eq:k_index}
 \end{equation}
 by the distributivity of summation
 \begin{equation}
@@ -1696,7 +1695,7 @@ The atomic energy terms $\epsilon[i]$ are the sums of partial energy terms, wher
 \begin{minted}{python}
 f_partial_energy(E, Phi):
     V_part_mat = matrix((2,n_basis), type="real")
-    for k=0,1,...,n_basis:
+    k=0,1,...,n_basis:
         V_part_mat[0][k] = E[0][k]*Phi[i][k]
         V_part_mat[1][k] = E[1][k]*Phi[i][k]
     V_part = f_smooth_rat(V_part_mat) # some smooth rational function
@@ -1864,8 +1863,8 @@ Bumpsum:
 Since most $h_k$ vanish:
 \begin{equation}
     \begin{split}
-        & i := \ceil{q} \geq 1, \\
-        & \epsilon := i-q \in [0,1) \implies q = i - \epsilon \in (i-1,i]
+        i := q \geq 1, \\
+        \epsilon := \lceil i-q \rceil \in [0,1) \implies q = i - \epsilon \in (i-1,i]
     \end{split}
 \end{equation}
 Simplified expressions:

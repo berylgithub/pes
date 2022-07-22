@@ -46,6 +46,9 @@
 
 \begin{document}
 
+\section{Bonding features}
+\label{sec:bondingfeature}
+
 \section{Completeness of molecular features}
 Features of a molecular geometry (or configuration) is said to be complete if they describe distinct (numerical) values for each distinct molecular geometry; otherwise if the features of some distinct geometries result in equal numerical value, then the features are incomplete. One way to check the completeness is by conducting a quality test of the molecular features.
 
@@ -84,14 +87,34 @@ For all possible combinations of $x_i \in \mathbb{Z}$, if (\refeq{eq:completenes
     \end{split}
     \label{eq:completeness_lattice_set}
 \end{equation}
-where the set $A$ corresponds to $\mathcal{L} = \sqrt{2}Z_3$, and $B$ corresponds to $\mathcal{L} = D_3$; this implies
+where the set $A$ corresponds to $\mathcal{L} = \sqrt{2}Z_3$, and $B$ corresponds to $\mathcal{L} = D_3$; this implies for $A$ and $B$:
 \begin{equation}
     x_i \in \{0, \pm 1, \pm 2\}.
 \end{equation}
 
 The goal here is to find the "counterexamples" of the completeness, by using the features computed from $x_i$ data. 
-The algorithm is as shown in Alg.(\refeq{alg:completeness_check}). In this case, $N$ corresponds to the number of atoms in the molecule, where $N > 3$ is of interest.
-
+The algorithm is as shown in Alg.(\refeq{alg:completeness_check}). 
+In the first step, $N$ corresponds to the number of atoms in the molecule, where $N > 3$ is of interest.
+The storage $\Gamma$ in practice can be any data structures such as dictionary, vector, or list, however in this case dictionary will be more preferable since 
+In step 3, $T$ is a matrix of size $N \times 3$ where the row corresponds to each set of atomic coordinates $x$, one $T$ matrix is for each $\mathcal{L}$ hence there should be two matrices for each $N$.
+In step 4, the feature vector is in the form of 
+\begin{equation*}
+    v = (v_1, v_2, ...)
+\end{equation*}
+where $v_i$ is the feature of the $i$th atom. In practice it is often that $v_i$ is in the form of vector or matrix, here it should be generalized by arranging the entries of $v_i$ in a consistent way for all $i$;
+for example, if we use the features from Section \ref{sec:bondingfeature}, then
+\begin{equation*}
+    v_i = (U[i], Y[i], G[i]),
+\end{equation*}
+where $G[i] \in \mathbb{R}^{d_1 \times d_2}$ itself is a matrix, hence $v_i$ can be arranged such that
+\begin{equation*}
+    v_i = (U[i], Y[i], G[i]_{1,1},..., G[i]_{d_1,1}, G[i]_{1,2},...,  G[i]_{d_1,d_2}),
+\end{equation*}
+in fact, this is a column-major indexing which is preferred for performance by some programming languages, such as Julia;
+thus
+\begin{equation*}
+    v = (U[1], Y[1], G[1]_{1,1},..., G[1]_{d_1,d_2}, U[2], Y[2], G[2]_{1,1},..., G[2]_{d_1,d_2}, ...).
+\end{equation*}
 
 \begin{algorithm}
     \caption{Completeness check}
@@ -100,17 +123,17 @@ The algorithm is as shown in Alg.(\refeq{alg:completeness_check}). In this case,
         \For{each $\mathcal{L}$ and each size $N$}
             \State Let $\Gamma$ be an empty storage.
             \State Pick random subset $T \in \mathbb{R}^{N \times 3} \subset S$, 
-            and scale $T$ such that the smallest distance is the pair-potential equilibrium distance $r_\text{eq}$.
-            \State Compute the feature vector $v$ from $T$.
+            and scale $T$ such that the smallest interatomic distance is the pair-potential equilibrium distance $r_\text{eq}$.
+            \State Compute the feature vector $v$ from $T$ and round each component of $v$ to the nearest integer.
             \If{$\Gamma \neq \emptyset$}
-                \State compare $(T,v)$ with $(T_i, v_i) \in \Gamma, i = 1,2,...,|\Gamma|$, 
-                for each pairing comparison: 
-                \If{the feature vector $v \equiv v_i$} 
-                    \State check for the isomorphism of $T$ and $T_i$:
+                \State compare $(T,v)$ with $(T^k, v^k) \in \Gamma$, 
+                for $k = 1,2,...,|\Gamma|$: 
+                \If{the feature vector $v \equiv v^k$} 
+                    \State check for the isomorphism between $T$ and $T^k$:
                     \If{not isomorphic}
-                        \State mark $(T, v)$ as an counterexample,
+                        \State mark $(T, v)$ as an counterexample of $k$,
                     \ElsIf{isomorphic} 
-                        \State skip $i$.
+                        \State continue to the next $k$.
                     \EndIf
                 \EndIf
             \EndIf
@@ -119,7 +142,6 @@ The algorithm is as shown in Alg.(\refeq{alg:completeness_check}). In this case,
         \EndFor
     \end{algorithmic}
 \end{algorithm}
-
 
 
 \end{document}
