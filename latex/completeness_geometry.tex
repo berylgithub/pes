@@ -95,7 +95,7 @@ where the set $A$ corresponds to $\mathcal{L} = \sqrt{2}Z_3$, and $B$ correspond
 The goal here is to find the "counterexamples" of the completeness, by using the features computed from $x_i$ data. 
 The algorithm is as shown in Alg.(\refeq{alg:completeness_check}). 
 In the first step, $N$ corresponds to the number of atoms in the molecule, where $N > 3$ is of interest.
-The storage $\Gamma$ in practice can be any data structures such as dictionary, vector, or list, however in this case dictionary will be more preferable since 
+The storage $\Gamma$ in practice can be any data structures such as dictionary, vector, or list, however in this case dictionary will be preferable since for each element of $\Gamma$ some key-value pairs will be needed, for example the counterexample marker key with integral vector as its value.
 In step 3, $T$ is a matrix of size $N \times 3$ where the row corresponds to each set of atomic coordinates $x$, one $T$ matrix is for each $\mathcal{L}$ hence there should be two matrices for each $N$.
 In step 4, the feature vector is in the form of 
 \begin{equation*}
