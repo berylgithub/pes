@@ -58,8 +58,9 @@ Consider the lattices
 \end{equation}
 they have a fixed set of distances
 \begin{equation}
-    \mathcal{D} := \{0, \sqrt{2}, \sqrt{4}, \sqrt{6}, \sqrt{8}, \sqrt{10}, ...\}.
+    \mathcal{D} := \{0, \sqrt{2}, \sqrt{4}, \sqrt{6}, \sqrt{8}, \sqrt{10}, ...\},
 \end{equation}
+the smallest nonnegative distance corresponds to the equilibrium distance, which is $r_{eq} = \sqrt{2}$. 
 The coordinates of $\mathcal{L} = \sqrt{2}Z_3$ lattice are defined by
 \begin{equation}
     x:= (\sqrt{2}x_1, \sqrt{2}x_2, \sqrt{2}x_3), \text{ where } x_i \in \mathbb{Z},
@@ -82,8 +83,8 @@ which implies the feasible set of distances
 For all possible combinations of $x_i \in \mathbb{Z}$, if (\refeq{eq:completeness_Z_set}) and (\refeq{eq:completeness_D_set}) must satisfy (\refeq{eq:completeness_distance_set}), then we can define
 \begin{equation}
     \begin{split}
-        A:= \{ x \mid \left\| x \right\|_2^2 \leq 4\}, \\
-        B:= \{ x \mid \left\| x \right\|_2^2 \leq 8\},
+        A:= \{ x \text{ with } (\refeq{eq:completeness_Z_set}) \mid \left\| x \right\|_2^2 \leq 4\}, \\
+        B:= \{ x \text{ with } (\refeq{eq:completeness_D_set}) \mid \left\| x \right\|_2^2 \leq 8\},
     \end{split}
     \label{eq:completeness_lattice_set}
 \end{equation}
@@ -92,21 +93,46 @@ where the set $A$ corresponds to $\mathcal{L} = \sqrt{2}Z_3$, and $B$ correspond
     x_i \in \{0, \pm 1, \pm 2\}.
 \end{equation}
 
-The goal here is to find the "counterexamples" of the completeness, by using the features computed from $x_i$ data. 
-The algorithm is as shown in Alg.(\refeq{alg:completeness_check}). 
-In the first step, $N$ corresponds to the number of atoms in the molecule, where $N > 3$ is of interest.
-The storage $\Gamma$ in practice can be any data structures such as dictionary, vector, or list, however in this case dictionary will be preferable since for each element of $\Gamma$ some key-value pairs will be needed, for example the counterexample marker key with integral vector as its value.
-In step 3, $T$ is a matrix of size $N \times 3$ where the row corresponds to each set of atomic coordinates $x$, one $T$ matrix is for each $\mathcal{L}$ hence there should be two matrices for each $N$.
+The goal here is to find possible "counterexamples" for completeness, by using the features computed from $x_i$ data. 
+The algorithm is as shown in Alg.(\ref{alg:completeness_check}). 
+
+\begin{algorithm}[H]
+    \caption{Completeness check}
+    \label{alg:completeness_check}
+    \begin{algorithmic}[1] 
+        \For{each $\mathcal{L}$ and each size $N$}
+            \State Let $\Lambda$ be an empty storage.
+            \State Pick a batch of random subsets $\Gamma \in \mathbb{R}^{M \times N \times 3} \subset S$, where each subset is in the form of a matrix $T \in \mathbb{R}^{N \times 3}$ which corresponds to one data point.
+            \State Compute the feature vector $v^k$ from $T^k$, for $k = 1,2,... M$; and normalize $v$ such that $v_i \in [-1, 1]$ for $i = 1,2,... |v|$.
+            \State Compare $(T^k, v^k)$ and $(T^j, v^j)$ for all $k \neq j = 1,2,...,M$:
+            \For{each $k$}
+                \If{the feature vector $v^k \equiv v^j$}
+                    \State check for the isomorphism between $T^k$ and $T^j$.
+                    \If{not isomorphic}
+                        \State mark $j$ as an counterexample of $k$, record this in $\Lambda$.
+                    \ElsIf{isomorphic} 
+                        \State continue to the next $j$.
+                    \EndIf
+                \EndIf
+            \EndFor 
+        \EndFor
+    \end{algorithmic}
+\end{algorithm}
+
+In the first step of the algorithm, $M$ coreresponds to the size of the batch, where usually it is preferable to have it in the order of thousands, generally, larger $M$ requires larger $N$; meanwhile $N$ corresponds to the number of atoms in the molecule, where $N > 3$ is of interest.
+The storage $\Lambda$ in practice can be any data structures such as dictionary, vector, or list, however in this case a list of dictionaries will be preferable since for each element of $\Lambda$ some key-value pairs will be needed, for example, the $k$ index as key with a vector of $j$ indices as its value.
+In step 3, $T$ is a matrix of size $N \times 3$ where each row corresponds to a vector of atomic coordinates $x$.
 In step 4, the feature vector is in the form of 
 \begin{equation*}
     v = (v_1, v_2, ...)
 \end{equation*}
-where $v_i$ is the feature of the $i$th atom. In practice it is often that $v_i$ is in the form of vector or matrix, here it should be generalized by arranging the entries of $v_i$ in a consistent way for all $i$;
+where $v_i$ is the list of features of the $i$th atom. In practice, $v_i$ is in the form of vector or matrix, here it should be generalized by arranging the entries of $v_i$ in a consistent way for all $i$;
 for example, if we use the features from Section \ref{sec:bondingfeature}, then
 \begin{equation*}
     v_i = (U[i], Y[i], G[i]),
 \end{equation*}
 where $G[i] \in \mathbb{R}^{d_1 \times d_2}$ itself is a matrix, hence $v_i$ can be arranged such that
+% self note: max d = 3
 \begin{equation*}
     v_i = (U[i], Y[i], G[i]_{1,1},..., G[i]_{d_1,1}, G[i]_{1,2},...,  G[i]_{d_1,d_2}),
 \end{equation*}
@@ -115,34 +141,20 @@ thus
 \begin{equation*}
     v = (U[1], Y[1], G[1]_{1,1},..., G[1]_{d_1,d_2}, U[2], Y[2], G[2]_{1,1},..., G[2]_{d_1,d_2}, ...).
 \end{equation*}
+The normalization of each component $w := v_i $ can be done by
+\begin{equation}
+    \begin{split}
+        &\overline{w} = \max w, \quad \underline{w} = \min w, \\
+        &\mu = 0.5(\overline{w} + \underline{w}), \quad \lambda = 0.5(\overline{w} - \underline{w}) \implies |w - \mu|\leq \lambda, \\
+        &w_\text{norm} := \frac{w - \mu}{\lambda}.
+    \end{split}
+\end{equation}
 
-\begin{algorithm}
-    \caption{Completeness check}
-    \label{alg:completeness_check}
-    \begin{algorithmic}[1] 
-        \For{each $\mathcal{L}$ and each size $N$}
-            \State Let $\Gamma$ be an empty storage.
-            \State Pick random subset $T \in \mathbb{R}^{N \times 3} \subset S$, 
-            and scale $T$ such that the smallest interatomic distance is the pair-potential equilibrium distance $r_\text{eq}$.
-            \State Compute the feature vector $v$ from $T$ and round each component of $v$ to the nearest integer.
-            \If{$\Gamma \neq \emptyset$}
-                \State compare $(T,v)$ with $(T^k, v^k) \in \Gamma$, 
-                for $k = 1,2,...,|\Gamma|$: 
-                \If{the feature vector $v \equiv v^k$} 
-                    \State check for the isomorphism between $T$ and $T^k$:
-                    \If{not isomorphic}
-                        \State mark $(T, v)$ as an counterexample of $k$,
-                    \ElsIf{isomorphic} 
-                        \State continue to the next $k$.
-                    \EndIf
-                \EndIf
-            \EndIf
-            \State Append $(T,v)$ to $\Gamma$.
-            \State Repeat until no new possible entries to be added. 
-        \EndFor
-    \end{algorithmic}
-\end{algorithm}
-
+The comparison in step 5 can be done in several ways, the simplest way is by accepting $j$ where
+\begin{equation*}
+    \left\| v^k - v^j\right\|_2 \leq \delta, \text{ where } \delta \ll 1;
+\end{equation*}
+another way would be by multiplying $v$ by preferrably some constants $c \geq 100$ (to avoid rounding errors) and round $v$ to the nearest integer, then compare the rounded $v^k$ and $v^j$.
 
 \end{document}
 
