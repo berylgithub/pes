@@ -78,12 +78,16 @@ function main()
     
     println(center_ids)
     # plot the points:
-    scatter(coords[1, :], coords[2, :], legend = false) # datapoints
+    s = scatter(coords[1, :], coords[2, :], legend = false) # datapoints
     # mean point:
-    #scatter!([mean_point[1,1], coords[1, centers[1]]], [mean_point[2,1], coords[2, centers[1]]], color="red")
-    annotate!([mean_point[1,1]], [mean_point[2,1]].-0.25, L"$\bar w$")
+    scatter!([mean_point[1,1], coords[1, centers[1]]], [mean_point[2,1], coords[2, centers[1]]], color="red")
+    annotate!([mean_point[1,1]], [mean_point[2,1]].+0.5, L"$\bar w$")
     # centers:
-    scatter!([coords[1, center_ids]], [coords[2, center_ids]], color="red", legend = false)
+    scatter!([coords[1, center_ids]], [coords[2, center_ids]], color="red", shape = :x, markersize = 10)
+    for i ∈ 1:length(center_ids)
+        annotate!([coords[1, center_ids[i]]], [coords[2, center_ids[i]]].+0.5, L"$k_{%$i}$")
+    end
+    display(s)
 end
 
 main()
