@@ -12,7 +12,7 @@ tempoorary main container
 """
 function main()
     # inputs:
-    M = 10 # number of centers
+    M = 2 # number of centers
     # fixed coords, ∈ (fingerprint length, data length):
     coords = Matrix{Float64}(undef, 2, 100) # a list of 2d coord arrays for testing
     # fill fixed coords:
@@ -29,28 +29,47 @@ function main()
     # Eldar's [*cite*] sampling algo:
     centers = zeros(Int64, data_size) # 1 if it is a center
     #centers[[1,3,4]] .= 1 # dum
+    mean_distances = Vector{Float64}(undef, data_size) # distances from mean point
     distances = Matrix{Float64}(undef, data_size, M) # distances from k_x, init matrix oncew
+    ## Start from mean of all points:
     mean_point = vec(mean(coords, dims=2)) # mean over the data for each fingerprint
-    ## For all M:
-    #= for m ∈ 1:M
-
-    end =#
-    ## Find largest distance:
-    ### compute list of distances from mean:
+    ref_point = mean_point # init with mean, then k_x next iter
     for i ∈ 1:data_size
-        distances[i, 1] = f_distance(mean_point, coords[:, i])
+        mean_distances[i] = f_distance(ref_point, coords[:, i])
     end
-    ### sort distances descending, why sort? to avoid multiple identical centers, (NaN, inf) doesnt work:
-    sorted_idx = sortperm(distances[:, 1], rev=true)
-    ### check if center is already counted:
-    for id ∈ sorted_idx
-        if centers[id] == 0
-            centers[id] = 1
-            break 
+    ### get point with max distance from mean:
+    _, selected_id = findmax(mean_distances)
+    centers[selected_id] = 1
+
+    ## To find k_x s.t. x > 1, for m ∈ M:
+#=     for m ∈ 1:M
+        ## Find largest distance:
+        ### compute list of distances from mean:
+        for i ∈ 1:data_size
+            distances[i, m] = f_distance(ref_point, coords[:, i])
         end
+        ### take the column minimum for each row:
+        min_dist = Vector{Float64}(undef, data_size)
+        for i ∈ 1:data_size
+            min_dist[i] = minimum(distances[i, 1:m])
+        end
+        println(min_dist)
+        ### sort distances descending, why sort? to avoid multiple identical centers, (NaN, inf) doesnt work:
+        sorted_idx = sortperm(min_dist, rev=true)
+        ### check if center is already counted:
+        selected_id = 0
+        for id ∈ sorted_idx
+            if centers[id] == 0
+                centers[id] = 1
+                selected_id = id
+                break 
+            end
+        end
+        ### reassign ref point by the new center:
+        ref_point = coords[:, selected_id]
+
     end
-
-
+    
 
     # transform center booleans to indexes (for other purposes, such as plot):
     idx_centers = Vector{Int64}()
@@ -59,6 +78,7 @@ function main()
             push!(idx_centers, i)
         end 
     end
+ =#
 
     # plot the points:
     scatter(coords[1, :], coords[2, :], legend = false)
