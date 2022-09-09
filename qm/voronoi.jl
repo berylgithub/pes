@@ -80,7 +80,7 @@ function main()
     # plot the points:
     s = scatter(coords[1, :], coords[2, :], legend = false) # datapoints
     # mean point:
-    scatter!([mean_point[1,1], coords[1, centers[1]]], [mean_point[2,1], coords[2, centers[1]]], color="red")
+    scatter!([mean_point[1,1]], [mean_point[2,1]], color="red")
     annotate!([mean_point[1,1]], [mean_point[2,1]].+0.5, L"$\bar w$")
     # centers:
     scatter!([coords[1, center_ids]], [coords[2, center_ids]], color="red", shape = :x, markersize = 10)
